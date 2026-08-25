@@ -1,0 +1,123 @@
+.stamp-overlay {
+  position: absolute;
+  pointer-events: auto;
+  z-index: 50;
+  user-select: none;
+  cursor: grab;
+  transform-origin: top left;
+}
+
+.stamp-overlay.dragging {
+  cursor: grabbing;
+}
+
+.stamp-overlay canvas {
+  display: block;
+  image-rendering: pixelated;
+  border: 1px dashed var(--accent);
+  box-shadow: var(--shadow-2);
+}
+
+.stamp-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: 2px solid var(--bg-0);
+  border-radius: 50%;
+  z-index: 51;
+}
+
+.stamp-handle.br {
+  right: -8px;
+  bottom: -8px;
+  cursor: nwse-resize;
+}
+
+.stamp-control-bar {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  z-index: 52;
+  font-size: 11px;
+  cursor: grab;
+}
+
+.stamp-control-bar button {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg-2);
+  color: var(--fg-1);
+  border: 1px solid var(--line);
+  font-size: 11px;
+}
+
+.stamp-control-bar button.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+.stamp-control-bar button:hover {
+  background: var(--bg-3);
+}
+
+.stamp-control-bar button.primary:hover {
+  filter: brightness(1.06);
+}
+
+.stamp-upload-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.stamp-upload-btn {
+  padding: 6px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--fg-0);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.stamp-upload-btn:hover {
+  background: var(--bg-3);
+}
+
+.stamp-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stamp-slider-row label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-3);
+  font-weight: 600;
+}
+
+.stamp-slider-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}

@@ -1,0 +1,125 @@
+.resize-dialog {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  width: 360px;
+  max-width: 90vw;
+  box-shadow: var(--shadow-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.resize-dialog h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.resize-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.resize-row label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+}
+
+.resize-input {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-0);
+}
+
+.resize-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.resize-mode-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.resize-mode {
+  flex: 1;
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+}
+
+.resize-mode.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.resize-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.resize-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.resize-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.resize-preset {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.resize-preset:hover {
+  background: var(--bg-3);
+}
+
+.resize-preview {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+}
+
+.resize-preview canvas {
+  image-rendering: pixelated;
+  max-width: 100%;
+  max-height: 120px;
+}

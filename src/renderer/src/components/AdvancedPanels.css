@@ -1,0 +1,92 @@
+.shade-panel .mode-row,
+.recolor-panel .mode-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  margin-bottom: var(--space-2);
+}
+
+.shade-mode,
+.recolor-mode {
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.shade-mode.active,
+.recolor-mode.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--space-2);
+}
+
+.slider-row label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-2);
+}
+
+.slider-row label span:last-child {
+  font-family: var(--font-mono);
+  color: var(--fg-1);
+  text-transform: none;
+}
+
+.slider-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.recolor-toggles {
+  display: flex;
+  gap: 4px;
+  margin-top: var(--space-2);
+}
+
+.recolor-toggle {
+  flex: 1;
+  padding: 5px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  cursor: pointer;
+}
+
+.recolor-toggle.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.apply-row {
+  display: flex;
+  gap: 4px;
+  margin-top: var(--space-3);
+}
+
+.recolor-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+  margin-left: auto;
+}

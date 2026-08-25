@@ -1,0 +1,38 @@
+{
+  "appId": "com.mcsprite.manager",
+  "productName": "MCsprite Manager",
+  "directories": {
+    "output": "release/${version}",
+    "buildResources": "build"
+  },
+  "files": [
+    "out/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "resources/vanilla",
+      "to": "vanilla"
+    }
+  ],
+  "win": {
+    "target": [
+      { "target": "nsis", "arch": ["x64"] },
+      { "target": "portable", "arch": ["x64"] }
+    ],
+    "artifactName": "${productName}-${version}-${arch}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "MCsprite Manager"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "cassianbach",
+    "repo": "mcsprite-manager"
+  }
+}

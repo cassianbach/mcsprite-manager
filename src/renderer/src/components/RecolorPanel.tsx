@@ -1,0 +1,134 @@
+import { useEffect, useRef, useMemo } from 'react';
+import { useEditorUi, setRecolor, resetRecolor } from '../store/editor';
+import { useProject } from '../store/project';
+import { recolorPixels } from '../lib/canvas';
+import { Button } from './Button';
+import './AdvancedPanels.css';
+
+interface Props {
+  onApply: () => void;
+}
+
+export function RecolorPanel({ onApply }: Props): JSX.Element {
+  const recolor = useEditorUi((s) => s.recolor);
+  const texture = useProject((s) => s.texture);
+  const previewRef = useRef<HTMLCanvasElement>(null);
+
+  const previewDataUrl = useMemo(() => {
+    if (!texture) return null;
+    const out = recolorPixels(texture.current, texture.width, texture.height, recolor);
+    // Render to an offscreen canvas, encode as data URL
+    const c = document.createElement('canvas');
+    c.width = texture.width;
+    c.height = texture.height;
+    const ctx = c.getContext('2d');
+    if (!ctx) return null;
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(out), texture.width, texture.height), 0, 0);
+    return c.toDataURL();
+  }, [texture, recolor]);
+
+  useEffect(() => {
+    // previewDataUrl computed above is sufficient
+    void previewRef;
+  }, [previewDataUrl]);
+
+  if (!texture) return <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>No texture</p>;
+
+  const isDirty =
+    recolor.hue !== 0 ||
+    recolor.saturation !== 0 ||
+    recolor.brightness !== 0 ||
+    recolor.contrast !== 0 ||
+    recolor.invert ||
+    recolor.grayscale;
+
+  return (
+    <div className="recolor-panel">
+      <div className="slider-row">
+        <label>
+          <span>Hue</span>
+          <span>{recolor.hue}°</span>
+        </label>
+        <input
+          type="range"
+          min={-180}
+          max={180}
+          value={recolor.hue}
+          onChange={(e) => setRecolor({ hue: parseInt(e.target.value, 10) })}
+        />
+      </div>
+      <div className="slider-row">
+        <label>
+          <span>Saturation</span>
+          <span>{recolor.saturation}%</span>
+        </label>
+        <input
+          type="range"
+          min={-100}
+          max={100}
+          value={recolor.saturation}
+          onChange={(e) => setRecolor({ saturation: parseInt(e.target.value, 10) })}
+        />
+      </div>
+      <div className="slider-row">
+        <label>
+          <span>Brightness</span>
+          <span>{recolor.brightness}%</span>
+        </label>
+        <input
+          type="range"
+          min={-100}
+          max={100}
+          value={recolor.brightness}
+          onChange={(e) => setRecolor({ brightness: parseInt(e.target.value, 10) })}
+        />
+      </div>
+      <div className="slider-row">
+        <label>
+          <span>Contrast</span>
+          <span>{recolor.contrast}%</span>
+        </label>
+        <input
+          type="range"
+          min={-100}
+          max={100}
+          value={recolor.contrast}
+          onChange={(e) => setRecolor({ contrast: parseInt(e.target.value, 10) })}
+        />
+      </div>
+
+      <div className="recolor-toggles">
+        <button
+          className={'recolor-toggle' + (recolor.invert ? ' active' : '')}
+          onClick={() => setRecolor({ invert: !recolor.invert })}
+        >
+          Invert
+        </button>
+        <button
+          className={'recolor-toggle' + (recolor.grayscale ? ' active' : '')}
+          onClick={() => setRecolor({ grayscale: !recolor.grayscale })}
+        >
+          Grayscale
+        </button>
+      </div>
+
+      {previewDataUrl && (
+        <img
+          src={previewDataUrl}
+          alt="recolor preview"
+          className="recolor-preview"
+          style={{ width: Math.min(96, texture.width * 4), height: Math.min(96, texture.height * 4) }}
+        />
+      )}
+
+      <div className="apply-row">
+        <Button variant="ghost" onClick={resetRecolor} disabled={!isDirty}>
+          Reset
+        </Button>
+        <Button variant="primary" onClick={onApply} disabled={!isDirty}>
+          Apply
+        </Button>
+      </div>
+    </div>
+  );
+}

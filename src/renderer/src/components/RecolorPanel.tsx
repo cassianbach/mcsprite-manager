@@ -56,6 +56,13 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
           value={recolor.hue}
           onChange={(e) => setRecolor({ hue: parseInt(e.target.value, 10) })}
         />
+        <input
+          type="number"
+          min={-180}
+          max={180}
+          value={recolor.hue}
+          onChange={(e) => setRecolor({ hue: parseInt(e.target.value, 10) || 0 })}
+        />
       </div>
       <div className="slider-row">
         <label>
@@ -68,6 +75,13 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
           max={100}
           value={recolor.saturation}
           onChange={(e) => setRecolor({ saturation: parseInt(e.target.value, 10) })}
+        />
+        <input
+          type="number"
+          min={-100}
+          max={100}
+          value={recolor.saturation}
+          onChange={(e) => setRecolor({ saturation: parseInt(e.target.value, 10) || 0 })}
         />
       </div>
       <div className="slider-row">
@@ -82,6 +96,13 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
           value={recolor.brightness}
           onChange={(e) => setRecolor({ brightness: parseInt(e.target.value, 10) })}
         />
+        <input
+          type="number"
+          min={-100}
+          max={100}
+          value={recolor.brightness}
+          onChange={(e) => setRecolor({ brightness: parseInt(e.target.value, 10) || 0 })}
+        />
       </div>
       <div className="slider-row">
         <label>
@@ -94,6 +115,13 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
           max={100}
           value={recolor.contrast}
           onChange={(e) => setRecolor({ contrast: parseInt(e.target.value, 10) })}
+        />
+        <input
+          type="number"
+          min={-100}
+          max={100}
+          value={recolor.contrast}
+          onChange={(e) => setRecolor({ contrast: parseInt(e.target.value, 10) || 0 })}
         />
       </div>
 

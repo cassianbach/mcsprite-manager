@@ -269,18 +269,22 @@ export function BulkEdit(): JSX.Element {
               <label className="bulk-field">
                 <span>Hue {hue}°</span>
                 <input type="range" min={-180} max={180} value={hue} onChange={(e) => setHue(Number(e.target.value))} />
+                <input type="number" min={-180} max={180} value={hue} onChange={(e) => setHue(Number(e.target.value) || 0)} />
               </label>
               <label className="bulk-field">
                 <span>Saturation {sat}%</span>
                 <input type="range" min={-100} max={100} value={sat} onChange={(e) => setSat(Number(e.target.value))} />
+                <input type="number" min={-100} max={100} value={sat} onChange={(e) => setSat(Number(e.target.value) || 0)} />
               </label>
               <label className="bulk-field">
                 <span>Brightness {bright}%</span>
                 <input type="range" min={-100} max={100} value={bright} onChange={(e) => setBright(Number(e.target.value))} />
+                <input type="number" min={-100} max={100} value={bright} onChange={(e) => setBright(Number(e.target.value) || 0)} />
               </label>
               <label className="bulk-field">
                 <span>Contrast {contrast}%</span>
                 <input type="range" min={-100} max={100} value={contrast} onChange={(e) => setContrast(Number(e.target.value))} />
+                <input type="number" min={-100} max={100} value={contrast} onChange={(e) => setContrast(Number(e.target.value) || 0)} />
               </label>
               <label className="checkbox">
                 <input type="checkbox" checked={invert} onChange={(e) => setInvert(e.target.checked)} />

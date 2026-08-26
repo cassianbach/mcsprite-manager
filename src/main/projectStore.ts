@@ -18,6 +18,7 @@ import type {
   ExportResult,
   AddTextureResult,
 } from '../shared/types';
+import { packFormatForVersion } from '../shared/types';
 
 const PROJECTS_ROOT = (): string => join(app.getPath('userData'), 'projects');
 
@@ -103,6 +104,19 @@ export async function renameProject(id: string, name: string): Promise<boolean> 
   return true;
 }
 
+export async function setProjectVersion(id: string, mcVersion: string): Promise<boolean> {
+  const dir = projectDir(id);
+  const metaPath = join(dir, 'project.json');
+  if (!existsSync(metaPath)) return false;
+  const raw = await fs.readFile(metaPath, 'utf8');
+  const meta = JSON.parse(raw) as Project;
+  meta.mcVersion = mcVersion;
+  meta.packFormat = packFormatForVersion(mcVersion);
+  meta.updatedAt = Date.now();
+  await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+  return true;
+}
+
 export async function listProjectTextures(projectId: string): Promise<string[]> {
   const dir = join(projectDir(projectId), 'textures');
   if (!existsSync(dir)) return [];
@@ -152,12 +166,16 @@ export async function loadProjectTexture(
 
   const width = png.width;
   // Derive frame dimensions from the actual PNG (robust to stale metadata written
-  // by older imports). Only trust the explicit mcmeta `height` hint for
-  // non-square frames; otherwise assume square frames (frameHeight == width).
+  // by older imports). Prefer the explicit mcmeta `height` hint for non-square
+  // frames, then the persisted `frameHeight`, otherwise assume square frames
+  // (frameHeight == width). A non-square static texture (e.g. 341x800) must keep
+  // its real height, not be squished into `width`-tall frames.
   const hintFH =
     meta?.animation && typeof meta.animation.frameHeight === 'number' && meta.animation.frameHeight > 0
       ? meta.animation.frameHeight
-      : undefined;
+      : meta && typeof meta.frameHeight === 'number' && meta.frameHeight > 0
+        ? meta.frameHeight
+        : undefined;
   const frameHeight = hintFH ?? Math.max(1, width);
   const frameCount = Math.max(1, Math.round(png.height / frameHeight));
   const height = frameHeight;
@@ -593,16 +611,21 @@ export async function exportZipTo(
   opts?: { packFormat?: number; description?: string },
 ): Promise<ExportResult> {
   const project = await readProject(projectId);
-  // Target 1.21.11 by default. Guard against stale pre-1.21 values (e.g. 34)
-  // that would make MC run path "fixers" and corrupt modern texture layouts.
-  const stored = project?.packFormat;
-  const packFormat =
-    opts?.packFormat ?? (stored && stored >= 46 ? stored : 75);
+  // Resolve the target pack format. Precedence: explicit option > the project's
+  // MC version > a stored format (if not a stale pre-1.20.5 value) > latest.
+  let packFormat = opts?.packFormat;
+  if (!packFormat) {
+    if (project?.mcVersion) packFormat = packFormatForVersion(project.mcVersion);
+    else if (project?.packFormat && project.packFormat >= 32) packFormat = project.packFormat;
+    else packFormat = packFormatForVersion();
+  }
   const description =
     opts?.description ?? project?.description ?? project?.name ?? 'Resource Pack';
 
   const detailed = await listDetailed(projectId);
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  // Level 0 = store-only (fastest). PNGs/JPGs are already compressed, so
+  // re-compressing them at high levels is very slow and saves nothing.
+  const archive = archiver('zip', { zlib: { level: 0 } });
   const output = createWriteStream(targetPath);
   let textureCount = 0;
 
@@ -895,7 +918,10 @@ function parseAnimationMeta(
   const frameCount = Math.max(1, Math.round(height / frameHeight));
 
   if (!animBlock) {
-    return { frameCount, frameHeight };
+    // No animation metadata: the whole image is a single static frame. Preserve
+    // its real (possibly non-square) height instead of assuming square frames,
+    // which would squish a 341x800 image into 341x341 and drop the rest.
+    return { frameCount: 1, frameHeight: height };
   }
 
   let frameList: number[] | undefined;
@@ -1093,11 +1119,15 @@ export async function applyImport(
   // untouched ones simply pass through unchanged.
   const passDir = join(projectDir(projectId), 'passthrough');
   await fs.mkdir(passDir, { recursive: true });
-  for (const [rel, buf] of session.assets) {
-    const target = join(passDir, rel);
-    await fs.mkdir(dirname(target), { recursive: true });
-    await fs.writeFile(target, buf);
-  }
+  // Write all passthrough files concurrently (parallel Promise.all) instead of
+  // serially; importing a large pack has thousands of files.
+  await Promise.all(
+    Array.from(session.assets.entries()).map(async ([rel, buf]) => {
+      const target = join(passDir, rel);
+      await fs.mkdir(dirname(target), { recursive: true });
+      await fs.writeFile(target, buf);
+    }),
+  );
 
   for (const sel of selections) {
     if (sel.action === 'skip') {

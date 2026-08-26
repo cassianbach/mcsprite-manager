@@ -83,6 +83,7 @@ interface ProjectStore {
   deleteFrame: (index: number) => void;
   setActiveFrame: (index: number) => void;
   setFrameTickDuration: (index: number, ticks: number) => void;
+  moveFrame: (from: number, to: number) => void;
   setInterpolate: (interp: boolean) => void;
   setDefaultFrameTicks: (ticks: number) => void;
 
@@ -267,6 +268,11 @@ export const useProject = create<ProjectStore>()(
               bf ? bf.pixels : s.texture.base,
             );
           }
+          // Re-sync `current` to the active frame so the canvas and the frames
+          // panel stay consistent (otherwise `current` is stuck on frame 0).
+          s.texture.current = new Uint8ClampedArray(
+            s.texture.animation.frames[s.texture.currentFrameIndex]?.pixels ?? fresh,
+          );
         }
         s.texture.modified = false;
         s.save = { status: 'dirty', lastSavedAt: s.save.lastSavedAt };
@@ -464,6 +470,45 @@ export const useProject = create<ProjectStore>()(
         const f = s.texture.animation.frames[index];
         if (!f) return;
         f.tickDuration = Math.max(1, Math.min(1000, Math.round(ticks)));
+      });
+      scheduleSave(get);
+    },
+
+    moveFrame: (from, to) => {
+      const t = get().texture;
+      if (!t || !t.animation) return;
+      const n = t.animation.frames.length;
+      if (from < 0 || from >= n || to < 0 || to >= n || from === to) return;
+      set((s) => {
+        if (!s.texture || !s.texture.animation) return;
+        const frames = s.texture.animation.frames;
+        const base = s.texture.baseFrames;
+        const [moved] = frames.splice(from, 1);
+        frames.splice(to, 0, moved);
+        // Keep the base (reset) frames in lock-step so Reset still lines up.
+        if (base.length === frames.length - 1 || base.length >= 1) {
+          if (from < base.length) {
+            const [bmoved] = base.splice(from, 1);
+            base.splice(Math.min(to, base.length), 0, bmoved);
+          }
+        }
+        // Track the currently active frame so it stays selected after the move.
+        if (s.texture.currentFrameIndex === from) {
+          s.texture.currentFrameIndex = to;
+        } else if (from < s.texture.currentFrameIndex && to >= s.texture.currentFrameIndex) {
+          s.texture.currentFrameIndex -= 1;
+        } else if (from > s.texture.currentFrameIndex && to <= s.texture.currentFrameIndex) {
+          s.texture.currentFrameIndex += 1;
+        }
+        s.texture.currentFrameIndex = Math.max(
+          0,
+          Math.min(s.texture.currentFrameIndex, frames.length - 1),
+        );
+        s.texture.current = new Uint8ClampedArray(
+          frames[s.texture.currentFrameIndex].pixels,
+        );
+        s.texture.modified = true;
+        s.save = { status: 'dirty', lastSavedAt: s.save.lastSavedAt };
       });
       scheduleSave(get);
     },

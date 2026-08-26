@@ -22,6 +22,7 @@ import {
   deleteProject,
   listProjects,
   renameProject,
+  setProjectVersion,
   loadProjectTexture,
   saveProjectTexture,
   deleteProjectTexture,
@@ -89,6 +90,25 @@ function setupAutoUpdater(): void {
   autoUpdater.on('error', (err) =>
     setUpdateState({ status: 'error', error: err?.message ?? String(err) }),
   );
+}
+
+/**
+ * Kick off an update check shortly after launch (packaged builds only).
+ * electron-updater reads the `app-update.yml` bundled next to the app to find
+ * the publish provider, then compares against the latest GitHub release.
+ */
+function checkForUpdatesOnStartup(): void {
+  if (!app.isPackaged) {
+    setUpdateState({ status: 'not-available' });
+    return;
+  }
+  // Give the renderer time to attach its `onStatus` listener before the first
+  // status events fire, so the sidebar can actually show the result.
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((e) => {
+      setUpdateState({ status: 'error', error: e instanceof Error ? e.message : String(e) });
+    });
+  }, 3000);
 }
 
 function createWindow(): void {
@@ -163,6 +183,9 @@ function registerIpc(): void {
   ipcMain.handle(IPC.projects.create, (_e, partial): Promise<Project> => createProject(partial));
   ipcMain.handle(IPC.projects.delete, (_e, id: string) => deleteProject(id));
   ipcMain.handle(IPC.projects.rename, (_e, id: string, name: string) => renameProject(id, name));
+  ipcMain.handle(IPC.projects.setVersion, (_e, id: string, mcVersion: string) =>
+    setProjectVersion(id, mcVersion),
+  );
   ipcMain.handle(IPC.projects.open, (_e, _id: string) => true);
 
   ipcMain.handle(IPC.textures.list, (_e, projectId: string) => listProjectTextures(projectId));
@@ -346,6 +369,7 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   setupAutoUpdater();
+  checkForUpdatesOnStartup();
 
   app.setAsDefaultProtocolClient('texture-editor');
   const forwardLink = (url: string) => {

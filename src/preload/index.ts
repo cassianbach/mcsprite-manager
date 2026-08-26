@@ -75,6 +75,8 @@ const api = {
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke(IPC.projects.delete, id),
     rename: (id: string, name: string): Promise<boolean> =>
       ipcRenderer.invoke(IPC.projects.rename, id, name),
+    setVersion: (id: string, mcVersion: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.projects.setVersion, id, mcVersion),
     open: (id: string): Promise<boolean> => ipcRenderer.invoke(IPC.projects.open, id),
   },
   textures: {

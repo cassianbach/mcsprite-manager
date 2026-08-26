@@ -30,10 +30,11 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "MCsprite Manager",
-    "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    "deleteAppDataOnUninstall": true,
+    "artifactName": "mcsprite-manager-Setup-${version}-${arch}.${ext}"
   },
   "portable": {
-    "artifactName": "${productName}-Portable-${version}-${arch}.${ext}"
+    "artifactName": "mcsprite-manager-Portable-${version}-${arch}.${ext}"
   },
   "publish": {
     "provider": "github",

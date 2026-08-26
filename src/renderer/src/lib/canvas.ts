@@ -600,8 +600,10 @@ export function gradientAlongPath(
   thickness = 8,
 ): Rect | null {
   if (pts.length === 0) return null;
-  // Half-width of the stroke around the curve.
-  const r = Math.max(1, Math.floor(thickness / 2));
+  // `thickness` is an odd diameter (1,3,5,...). Radius = (diameter-1)/2 so a
+  // stroke of thickness 1 is exactly one pixel wide and thickness 3 is 3 wide
+  // (no silent rounding). Clamp to at least 0 for a 1px dot.
+  const r = Math.max(0, Math.floor((Math.max(1, Math.round(thickness)) - 1) / 2));
   const lerp = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
 
   // Bounding box of the path, expanded by the stroke radius.
@@ -690,6 +692,99 @@ export function gradientAlongPath(
 }
 
 /**
+ * Like `gradientAlongPath` (stroke follows the freehand curve) but the gradient
+ * color is interpolated along a fixed `angleDeg` axis instead of the curve's
+ * arc length. So the stroke traces your path while the color fades in a
+ * consistent direction across the whole region.
+ */
+export function gradientAlongPathAngle(
+  pixels: Uint8ClampedArray,
+  w: number,
+  h: number,
+  pts: Array<{ x: number; y: number }>,
+  from: [number, number, number, number],
+  to: [number, number, number, number],
+  rect: Rect | undefined,
+  thickness: number,
+  angleDeg: number,
+): Rect | null {
+  if (pts.length === 0) return null;
+  const r = Math.max(0, Math.floor((Math.max(1, Math.round(thickness)) - 1) / 2));
+  const lerp = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
+  const rad = (angleDeg * Math.PI) / 180;
+  const dx = Math.cos(rad);
+  const dy = Math.sin(rad);
+
+  // Bounding box of the path expanded by the stroke radius.
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  let x0 = Math.max(0, Math.floor(minX) - r);
+  let y0 = Math.max(0, Math.floor(minY) - r);
+  let x1 = Math.min(w, Math.ceil(maxX) + r + 1);
+  let y1 = Math.min(h, Math.ceil(maxY) + r + 1);
+  if (rect) {
+    x0 = Math.max(x0, Math.floor(rect.x));
+    y0 = Math.max(y0, Math.floor(rect.y));
+    x1 = Math.min(x1, Math.floor(rect.x + rect.w));
+    y1 = Math.min(y1, Math.floor(rect.y + rect.h));
+  }
+  if (x1 <= x0 || y1 <= y0) return null;
+
+  // Project the bounding-box corners onto the angle axis for [min,max].
+  const corners = [
+    [x0, y0],
+    [x1 - 1, y0],
+    [x0, y1 - 1],
+    [x1 - 1, y1 - 1],
+  ];
+  let mn = Infinity;
+  let mx = -Infinity;
+  for (const [cx, cy] of corners) {
+    const proj = cx * dx + cy * dy;
+    if (proj < mn) mn = proj;
+    if (proj > mx) mx = proj;
+  }
+  const span = mx - mn || 1;
+
+  for (let py = y0; py < y1; py++) {
+    for (let px = x0; px < x1; px++) {
+      // Nearest distance to the polyline (same as gradientAlongPath).
+      let bestDist = Infinity;
+      for (let i = 1; i < pts.length; i++) {
+        const ax = pts[i - 1].x;
+        const ay = pts[i - 1].y;
+        const bx = pts[i].x;
+        const by = pts[i].y;
+        const abx = bx - ax;
+        const aby = by - ay;
+        const ab2 = abx * abx + aby * aby;
+        let t = ab2 === 0 ? 0 : ((px - ax) * abx + (py - ay) * aby) / ab2;
+        t = Math.max(0, Math.min(1, t));
+        const d = Math.hypot(px - (ax + abx * t), py - (ay + aby * t));
+        if (d < bestDist) bestDist = d;
+      }
+      if (bestDist <= r) {
+        const tt = Math.max(0, Math.min(1, (px * dx + py * dy - mn) / span));
+        const i = (py * w + px) * 4;
+        pixels[i] = lerp(from[0], to[0], tt);
+        pixels[i + 1] = lerp(from[1], to[1], tt);
+        pixels[i + 2] = lerp(from[2], to[2], tt);
+        pixels[i + 3] = lerp(from[3], to[3], tt);
+      }
+    }
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/**
  * Fill a rectangular region with a linear gradient from `from` (at the start
  * edge) to `to` (at the end edge). `axis` controls the direction:
  * 'vertical' fades top -> bottom, 'horizontal' fades left -> right.
@@ -736,6 +831,165 @@ export function gradientRect(
     }
   }
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/**
+ * Fill a rectangular region with a linear gradient oriented at `angleDeg`
+ * (0 = left→right, 90 = top→bottom). The gradient's position along the axis is
+ * projected onto the direction vector so the fade runs at an arbitrary angle.
+ */
+export function gradientRectAngle(
+  pixels: Uint8ClampedArray,
+  w: number,
+  h: number,
+  rect: Rect,
+  from: [number, number, number, number],
+  to: [number, number, number, number],
+  angleDeg: number,
+): Rect {
+  const x0 = Math.max(0, Math.floor(rect.x));
+  const y0 = Math.max(0, Math.floor(rect.y));
+  const x1 = Math.min(w, Math.ceil(rect.x + rect.w));
+  const y1 = Math.min(h, Math.ceil(rect.y + rect.h));
+  if (x1 <= x0 || y1 <= y0) return { x: x0, y: y0, w: 0, h: 0 };
+  const lerp = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
+  const rad = (angleDeg * Math.PI) / 180;
+  const dx = Math.cos(rad);
+  const dy = Math.sin(rad);
+  // Project corners onto the gradient axis to get the [min,max] range.
+  const corners = [
+    [x0, y0],
+    [x1 - 1, y0],
+    [x0, y1 - 1],
+    [x1 - 1, y1 - 1],
+  ];
+  let mn = Infinity;
+  let mx = -Infinity;
+  for (const [cx, cy] of corners) {
+    const p = cx * dx + cy * dy;
+    if (p < mn) mn = p;
+    if (p > mx) mx = p;
+  }
+  const span = mx - mn || 1;
+  for (let py = y0; py < y1; py++) {
+    for (let px = x0; px < x1; px++) {
+      const t = Math.max(0, Math.min(1, (px * dx + py * dy - mn) / span));
+      const i = (py * w + px) * 4;
+      pixels[i] = lerp(from[0], to[0], t);
+      pixels[i + 1] = lerp(from[1], to[1], t);
+      pixels[i + 2] = lerp(from[2], to[2], t);
+      pixels[i + 3] = lerp(from[3], to[3], t);
+    }
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/**
+ * Radial gradient from a single clicked point: color fades from `from` (at the
+ * center) to `to` (at the edge). `maxR` is the radius to the nearest edge so the
+ * falloff covers the whole reachable area. Optionally rotated by `angleDeg`.
+ */
+export function gradientPoint(
+  pixels: Uint8ClampedArray,
+  w: number,
+  h: number,
+  cx: number,
+  cy: number,
+  from: [number, number, number, number],
+  to: [number, number, number, number],
+  maxR?: number,
+): Rect {
+  const r = maxR ?? Math.max(1, Math.max(cx, w - cx, cy, h - cy));
+  const lerp = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
+  const x0 = Math.max(0, Math.floor(cx - r));
+  const y0 = Math.max(0, Math.floor(cy - r));
+  const x1 = Math.min(w, Math.ceil(cx + r));
+  const y1 = Math.min(h, Math.ceil(cy + r));
+  for (let py = y0; py < y1; py++) {
+    for (let px = x0; px < x1; px++) {
+      const d = Math.hypot(px - cx, py - cy);
+      if (d > r) continue;
+      const t = Math.max(0, Math.min(1, d / r));
+      const i = (py * w + px) * 4;
+      pixels[i] = lerp(from[0], to[0], t);
+      pixels[i + 1] = lerp(from[1], to[1], t);
+      pixels[i + 2] = lerp(from[2], to[2], t);
+      pixels[i + 3] = lerp(from[3], to[3], t);
+    }
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/**
+ * Gradient across a set of clicked pixels ("dots"). Only the clicked pixels are
+ * painted; nothing between them is affected. Color interpolates from `from` to
+ * `to` based on the pixel's projected position along the `angleDeg` axis
+ * (falling back to the order clicked if no angle). Each dot gets a small radius
+ * so single pixels are visible.
+ */
+export function gradientDots(
+  pixels: Uint8ClampedArray,
+  w: number,
+  h: number,
+  dots: Array<{ x: number; y: number }>,
+  from: [number, number, number, number],
+  to: [number, number, number, number],
+  angleDeg?: number,
+  radius = 0,
+): Rect | null {
+  if (dots.length === 0) return null;
+  const lerp = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
+
+  // Determine each dot's gradient position.
+  let tByDot: number[];
+  if (angleDeg !== undefined) {
+    const rad = (angleDeg * Math.PI) / 180;
+    const dx = Math.cos(rad);
+    const dy = Math.sin(rad);
+    let mn = Infinity;
+    let mx = -Infinity;
+    for (const d of dots) {
+      const p = d.x * dx + d.y * dy;
+      if (p < mn) mn = p;
+      if (p > mx) mx = p;
+    }
+    const span = mx - mn || 1;
+    tByDot = dots.map((d) => Math.max(0, Math.min(1, (d.x * dx + d.y * dy - mn) / span)));
+  } else {
+    tByDot = dots.map((_, i) => (dots.length === 1 ? 0 : i / (dots.length - 1)));
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const d of dots) {
+    minX = Math.min(minX, d.x - radius);
+    minY = Math.min(minY, d.y - radius);
+    maxX = Math.max(maxX, d.x + radius);
+    maxY = Math.max(maxY, d.y + radius);
+  }
+
+  for (let k = 0; k < dots.length; k++) {
+    const d = dots[k];
+    const t = tByDot[k];
+    for (let py = Math.max(0, d.y - radius); py <= Math.min(h - 1, d.y + radius); py++) {
+      for (let px = Math.max(0, d.x - radius); px <= Math.min(w - 1, d.x + radius); px++) {
+        if (radius > 0 && Math.hypot(px - d.x, py - d.y) > radius) continue;
+        const i = (py * w + px) * 4;
+        pixels[i] = lerp(from[0], to[0], t);
+        pixels[i + 1] = lerp(from[1], to[1], t);
+        pixels[i + 2] = lerp(from[2], to[2], t);
+        pixels[i + 3] = lerp(from[3], to[3], t);
+      }
+    }
+  }
+  return {
+    x: Math.max(0, Math.floor(minX)),
+    y: Math.max(0, Math.floor(minY)),
+    w: Math.min(w, Math.ceil(maxX)) - Math.max(0, Math.floor(minX)),
+    h: Math.min(h, Math.ceil(maxY)) - Math.max(0, Math.floor(minY)),
+  };
 }
 
 /** Mirror a rectangle across the active axes, returning all variants (clamped). */

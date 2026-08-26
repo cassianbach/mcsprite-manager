@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import type { TextureDetailed, ImportTexturePreview } from '@shared/types';
+import { MC_VERSIONS } from '@shared/types';
 import './ImportExport.css';
 
 type ImportAction = 'import' | 'skip' | 'overwrite' | 'rename';
@@ -31,9 +32,18 @@ export function ImportExport(): JSX.Element {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string>('');
 
+  const [mcVersion, setMcVersion] = useState<string>(MC_VERSIONS[0].id);
+
   useEffect(() => {
     if (!projectId) return;
     void window.api.io.exportList(projectId).then(setList).catch(() => setList([]));
+    void window.api.projects
+      .list()
+      .then((ps) => {
+        const p = ps.find((x) => x.id === projectId);
+        if (p?.mcVersion) setMcVersion(p.mcVersion);
+      })
+      .catch(() => undefined);
   }, [projectId]);
 
   useEffect(() => {
@@ -44,7 +54,7 @@ export function ImportExport(): JSX.Element {
     setExporting(true);
     setExportMsg('');
     try {
-      const res = await window.api.io.exportZip(projectId);
+      const res = await window.api.io.exportZip(projectId, { packFormat: mcFormatForVersion(mcVersion) });
       if (res.cancelled) setExportMsg('Export cancelled.');
       else if (res.ok) setExportMsg(`Exported ${res.textureCount} textures to ${res.path}`);
       else setExportMsg('Export failed.');
@@ -52,6 +62,17 @@ export function ImportExport(): JSX.Element {
       setExportMsg(`Export failed: ${(e as Error).message}`);
     } finally {
       setExporting(false);
+    }
+  }
+
+  function mcFormatForVersion(version: string): number {
+    return MC_VERSIONS.find((v) => v.id === version)?.packFormat ?? MC_VERSIONS[0].packFormat;
+  }
+
+  async function handleSetVersion(version: string): Promise<void> {
+    setMcVersion(version);
+    if (projectId) {
+      await window.api.projects.setVersion(projectId, version).catch(() => undefined);
     }
   }
 
@@ -173,6 +194,20 @@ export function ImportExport(): JSX.Element {
             {exporting ? 'Exporting…' : 'Export .zip'}
           </Button>
           {exportMsg && <span className="ie-msg">{exportMsg}</span>}
+        </div>
+        <div className="ie-row">
+          <label className="ie-label">Target Minecraft version</label>
+          <select
+            className="ie-select"
+            value={mcVersion}
+            onChange={(e) => void handleSetVersion(e.target.value)}
+          >
+            {MC_VERSIONS.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.id} (format {v.packFormat})
+              </option>
+            ))}
+          </select>
         </div>
       </section>
 

@@ -1,7 +1,7 @@
 .editor-shell {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1fr 320px;
   grid-template-areas:
     'toolbar toolbar'
     'canvas  side'
@@ -189,6 +189,75 @@
   gap: var(--space-2);
 }
 
+.modal-wide {
+  max-width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-1);
+}
+
+.info-item-desc {
+  font-size: 11px;
+  color: var(--fg-2);
+  line-height: 1.45;
+}
+
+.info-shortcuts {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-0);
+  margin-bottom: var(--space-4);
+}
+
+.info-shortcuts h4 { margin: 0 0 var(--space-1); font-size: 12px; }
+.info-shortcuts span { font-size: 11px; color: var(--fg-2); }
+
+.rename-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-0);
+  padding: 4px;
+}
+
+.rename-suggestion {
+  text-align: left;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: var(--fg-1);
+  border-radius: 4px;
+  background: transparent;
+}
+
+.rename-suggestion:hover {
+  background: var(--bg-2);
+  color: var(--accent);
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -318,12 +387,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
 
 .seg {
   display: inline-flex;
+  flex-wrap: wrap;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -332,7 +403,7 @@
   border: none;
   background: var(--bg-3);
   color: var(--fg-1);
-  padding: 4px 10px;
+  padding: 4px 8px;
   font-size: 12px;
   cursor: pointer;
 }

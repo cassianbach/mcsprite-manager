@@ -1,5 +1,43 @@
 export type ProjectKind = 'mc' | 'sprite' | 'mixed';
 
+/** A Minecraft release mapped to its resource-pack format (pack.mcmeta `pack_format`). */
+export interface McVersion {
+  id: string;
+  packFormat: number;
+}
+
+/** Supported target MC versions, newest first. */
+export const MC_VERSIONS: McVersion[] = [
+  { id: '1.21.11', packFormat: 75 },
+  { id: '1.21.9', packFormat: 69 },
+  { id: '1.21.8', packFormat: 64 },
+  { id: '1.21.6', packFormat: 63 },
+  { id: '1.21.5', packFormat: 55 },
+  { id: '1.21.4', packFormat: 46 },
+  { id: '1.21.2', packFormat: 42 },
+  { id: '1.21', packFormat: 34 },
+  { id: '1.20.6', packFormat: 32 },
+  { id: '1.20.4', packFormat: 22 },
+  { id: '1.20.2', packFormat: 18 },
+  { id: '1.20', packFormat: 15 },
+  { id: '1.19.4', packFormat: 13 },
+  { id: '1.19.3', packFormat: 12 },
+  { id: '1.19', packFormat: 9 },
+  { id: '1.18', packFormat: 8 },
+  { id: '1.17', packFormat: 7 },
+  { id: '1.16.5', packFormat: 6 },
+  { id: '1.15', packFormat: 5 },
+];
+
+/** Resolve the pack format for a given MC version string (fallback: latest). */
+export function packFormatForVersion(version?: string): number {
+  if (version) {
+    const found = MC_VERSIONS.find((v) => v.id === version);
+    if (found) return found.packFormat;
+  }
+  return MC_VERSIONS[0].packFormat;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -231,6 +269,7 @@ export const IPC = {
     delete: 'projects:delete',
     open: 'projects:open',
     rename: 'projects:rename',
+    setVersion: 'projects:setVersion',
   },
   textures: {
     list: 'textures:list',

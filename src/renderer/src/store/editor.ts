@@ -25,7 +25,10 @@ export interface EditorUiState {
   secondaryColor: string;
   historyLimit: number;
   mirror: MirrorMode;
-  gradientMode: 'curve' | 'rectangle';
+  gradientMode: 'curve' | 'rectangle' | 'point' | 'dots';
+  gradientAngle: number; // 0..359 degrees
+  gradientUseAngle: boolean; // fill by angle instead of start→finish
+  gradientThickness: number; // stroke diameter for 'curve' mode (odd, 1..63)
 
   // Shade tool
   shadeMode: 'lighten' | 'darken' | 'tint' | 'fade';
@@ -53,6 +56,9 @@ export const useEditorUi = create<EditorUiState>()(
     historyLimit: 50,
     mirror: 'none',
     gradientMode: 'curve',
+    gradientAngle: 0,
+    gradientUseAngle: false,
+    gradientThickness: 5,
     shadeMode: 'lighten',
     shadeStrength: 25,
     recolor: {
@@ -101,9 +107,30 @@ export const setSecondaryColor = (hex: string) =>
     s.secondaryColor = hex;
   });
 
-export const setGradientMode = (mode: 'curve' | 'rectangle') =>
+export const setGradientMode = (mode: 'curve' | 'rectangle' | 'point' | 'dots') =>
   useEditorUi.setState((s) => {
     s.gradientMode = mode;
+  });
+
+export const setGradientUseAngle = (use: boolean) =>
+  useEditorUi.setState((s) => {
+    s.gradientUseAngle = use;
+  });
+
+export const setGradientAngle = (deg: number) =>
+  useEditorUi.setState((s) => {
+    s.gradientAngle = ((Math.round(deg) % 360) + 360) % 360;
+  });
+
+// Odd-only diameter (1,3,5,...) so a curve stroke has an exact center pixel and
+// the value maps 1:1 to the visible stroke width (no silent rounding).
+export const setGradientThickness = (n: number) =>
+  useEditorUi.setState((s) => {
+    let v = Math.round(n);
+    if (v < 1) v = 1;
+    if (v > 63) v = 63;
+    if (v % 2 === 0) v += 1; // snap up to nearest odd
+    s.gradientThickness = v;
   });
 
 export const setMirror = (m: MirrorMode) =>

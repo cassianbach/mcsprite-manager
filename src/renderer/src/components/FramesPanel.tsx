@@ -15,6 +15,7 @@ export function FramesPanel({ onExportGif, onExportStrip }: Props): JSX.Element 
   const deleteFrame = useProject((s) => s.deleteFrame);
   const setActiveFrame = useProject((s) => s.setActiveFrame);
   const setFrameTickDuration = useProject((s) => s.setFrameTickDuration);
+  const moveFrame = useProject((s) => s.moveFrame);
   const setInterpolate = useProject((s) => s.setInterpolate);
   const setDefaultFrameTicks = useProject((s) => s.setDefaultFrameTicks);
   const animateStatic = useProject((s) => s.animateStatic);
@@ -138,6 +139,15 @@ export function FramesPanel({ onExportGif, onExportStrip }: Props): JSX.Element 
         </Button>
         <Button onClick={() => deleteFrame(idx)} disabled={frames.length <= 1}>
           Delete
+        </Button>
+      </div>
+
+      <div className="frames-controls">
+        <Button onClick={() => moveFrame(idx, idx - 1)} disabled={idx <= 0} title="Move frame earlier">
+          ◀
+        </Button>
+        <Button onClick={() => moveFrame(idx, idx + 1)} disabled={idx >= frames.length - 1} title="Move frame later">
+          ▶
         </Button>
       </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useEditorUi, setTool, setBrushSize, setShowGrid, cycleMirror, setRecolor, setSecondaryColor, setGradientMode } from '../store/editor';
+import { useEditorUi, setTool, setBrushSize, setShowGrid, cycleMirror, setRecolor, setSecondaryColor, setGradientMode, setGradientAngle, setGradientThickness, setGradientUseAngle } from '../store/editor';
 import type { ToolId } from '../store/editor';
 import { useProject, canUndo, canRedo } from '../store/project';
 import { useClipboard } from '../store/clipboard';
@@ -26,7 +26,11 @@ import {
   floodFill,
   getPixel,
   gradientAlongPath,
+  gradientAlongPathAngle,
   gradientRect,
+  gradientRectAngle,
+  gradientPoint,
+  gradientDots,
   mirrorRect,
   hexToTuple,
   mirrorX,
@@ -179,6 +183,7 @@ export function Editor(): JSX.Element {
   const [renaming, setRenaming] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const activeTool = useEditorUi((s) => s.activeTool);
   const brushSize = useEditorUi((s) => s.brushSize);
@@ -187,6 +192,9 @@ export function Editor(): JSX.Element {
   const primaryColor = useEditorUi((s) => s.primaryColor);
   const secondaryColor = useEditorUi((s) => s.secondaryColor);
   const gradientMode = useEditorUi((s) => s.gradientMode);
+  const gradientAngle = useEditorUi((s) => s.gradientAngle);
+  const gradientThickness = useEditorUi((s) => s.gradientThickness);
+  const gradientUseAngle = useEditorUi((s) => s.gradientUseAngle);
   const mirror = useEditorUi((s) => s.mirror);
 
   const [textureList, setTextureList] = useState<string[]>([]);
@@ -216,6 +224,7 @@ export function Editor(): JSX.Element {
   const zoomRef = useRef(zoom);
   const pointer = useRef<PointerState>({ drawing: false, last: null, selMode: null });
   const gradientPathRef = useRef<Array<{ x: number; y: number }>>([]);
+  const gradientDotsRef = useRef<Array<{ x: number; y: number }>>([]);
   const [tick, forceTick] = useState(0);
 
   useEffect(() => {
@@ -594,6 +603,29 @@ export function Editor(): JSX.Element {
 
   // ===== Pointer handlers =====
 
+  function applyDotsGradient(): void {
+    const t = useProject.getState().texture;
+    const ui = useEditorUi.getState();
+    const dots = gradientDotsRef.current;
+    if (!t || dots.length === 0) return;
+    const from = hexToTuple(ui.primaryColor);
+    const to = hexToTuple(ui.secondaryColor);
+    const pixels = new Uint8ClampedArray(t.current);
+    const r = gradientDots(
+      pixels,
+      t.width,
+      t.height,
+      dots,
+      from,
+      to,
+      ui.gradientUseAngle ? ui.gradientAngle : undefined,
+      Math.max(0, Math.floor((ui.gradientThickness - 1) / 2)),
+    );
+    if (r) applyEdit(pixels, r);
+    gradientDotsRef.current = [];
+    forceTick((n) => n + 1);
+  }
+
   const handlePointer = useCallback(
     (e: {
       type: 'down' | 'move' | 'up' | 'leave';
@@ -778,6 +810,22 @@ export function Editor(): JSX.Element {
           pointer.current.last = null;
         }
       } else if (tool === 'gradient') {
+        const ui = useEditorUi.getState();
+
+        // Dots mode: each click selects a single pixel; nothing between is
+        // filled. Collect clicks, then press Enter to apply the gradient to
+        // just those pixels.
+        if (ui.gradientMode === 'dots') {
+          if (e.type === 'down') {
+            const dots = gradientDotsRef.current;
+            if (!dots.some((d) => d.x === e.pixel.x && d.y === e.pixel.y)) {
+              dots.push(e.pixel);
+              forceTick((n) => n + 1);
+            }
+          }
+          return;
+        }
+
         if (e.type === 'down') {
           gradientPathRef.current = [e.pixel];
           pointer.current.drawing = true;
@@ -790,19 +838,36 @@ export function Editor(): JSX.Element {
           }
         } else if (e.type === 'up' && pointer.current.drawing) {
           pointer.current.drawing = false;
-          const ui = useEditorUi.getState();
           const from = hexToTuple(ui.primaryColor);
           const to = hexToTuple(ui.secondaryColor);
+
+          // Point mode: radial gradient from the clicked point.
+          if (ui.gradientMode === 'point') {
+            const pt = gradientPathRef.current[0];
+            gradientPathRef.current = [];
+            if (!pt) return;
+            const pixels = new Uint8ClampedArray(texture.current);
+            // Thickness controls the point radius (0 means "fill to edges").
+            const radius = ui.gradientThickness > 1 ? Math.max(1, Math.floor(ui.gradientThickness / 2)) : undefined;
+            let combined: { x: number; y: number; w: number; h: number } | null = null;
+            for (const [px, py] of applyMirror(pt.x, pt.y)) {
+              const r = gradientPoint(pixels, texture.width, texture.height, px, py, from, to, radius);
+              combined = unionRect(combined, r);
+            }
+            if (combined) applyEdit(pixels, combined);
+            return;
+          }
 
           // Rectangle mode: fill the current selection with a gradient.
           if (ui.gradientMode === 'rectangle') {
             const sel = texture.selection;
             if (!sel) return;
             const pixels = new Uint8ClampedArray(texture.current);
-            const axis = sel.w > sel.h ? 'horizontal' : 'vertical';
             let combined: { x: number; y: number; w: number; h: number } | null = null;
             for (const r of mirrorRect(sel, ui.mirror, texture.width, texture.height)) {
-              const rr = gradientRect(pixels, texture.width, texture.height, r, from, to, axis);
+              const rr = ui.gradientUseAngle
+                ? gradientRectAngle(pixels, texture.width, texture.height, r, from, to, ui.gradientAngle)
+                : gradientRect(pixels, texture.width, texture.height, r, from, to, sel.w > sel.h ? 'horizontal' : 'vertical');
               combined = unionRect(combined, rr);
             }
             if (combined) applyEdit(pixels, combined);
@@ -815,10 +880,12 @@ export function Editor(): JSX.Element {
           if (path.length < 2) return;
           const pixels = new Uint8ClampedArray(texture.current);
           const selRect = texture.selection ?? undefined;
-          const thickness = brushSizeRef.current;
+          const thickness = ui.gradientThickness;
           let combined: { x: number; y: number; w: number; h: number } | null = null;
           for (const vp of mirrorPath(path)) {
-            const r = gradientAlongPath(pixels, texture.width, texture.height, vp, from, to, selRect, thickness);
+            const r = ui.gradientUseAngle
+              ? gradientAlongPathAngle(pixels, texture.width, texture.height, vp, from, to, selRect, thickness, ui.gradientAngle)
+              : gradientAlongPath(pixels, texture.width, texture.height, vp, from, to, selRect, thickness);
             if (r) combined = unionRect(combined, r);
           }
           if (combined) applyEdit(pixels, combined);
@@ -1220,6 +1287,12 @@ export function Editor(): JSX.Element {
         return;
       }
 
+      if (e.key === 'Enter' && activeToolRef.current === 'gradient' && useEditorUi.getState().gradientMode === 'dots') {
+        e.preventDefault();
+        applyDotsGradient();
+        return;
+      }
+
       const map: Record<string, ToolId> = {
         b: 'pencil',
         e: 'eraser',
@@ -1311,6 +1384,14 @@ export function Editor(): JSX.Element {
           ctx.beginPath();
           ctx.arc(p.x * scale + scale / 2, p.y * scale + scale / 2, 1.5, 0, Math.PI * 2);
           ctx.fill();
+        }
+      }
+
+      // Highlight the individually selected "dots" pixels (gradient dots mode).
+      if (activeToolRef.current === 'gradient' && gradientDotsRef.current.length > 0) {
+        ctx.fillStyle = 'rgba(108, 240, 214, 0.9)';
+        for (const d of gradientDotsRef.current) {
+          ctx.fillRect(d.x * scale, d.y * scale, scale, scale);
         }
       }
 
@@ -1541,6 +1622,9 @@ export function Editor(): JSX.Element {
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/export`)}>
             Import / Export
           </Button>
+          <Button variant="ghost" onClick={() => setInfoOpen(true)} title="Help — what each tool does">
+            Info
+          </Button>
           <Button variant="ghost" onClick={() => setSheetOpen(true)} disabled={!texture}>
             Sprite sheet
           </Button>
@@ -1601,6 +1685,36 @@ export function Editor(): JSX.Element {
               </Button>
               <Button variant="danger" onClick={() => void deleteCurrentTexture()}>
                 Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {infoOpen && (
+        <div className="modal-overlay" onClick={() => setInfoOpen(false)}>
+          <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
+            <h3>Tools</h3>
+            <div className="info-grid">
+              <InfoItem name="Pencil (B)" desc="Paint with the primary color. Hold Shift to draw straight lines. Brush size is in the sidebar." />
+              <InfoItem name="Eraser (E)" desc="Erase pixels to transparent. Hold Shift for straight erases." />
+              <InfoItem name="Fill (G)" desc="Flood-fill a connected area with the primary color." />
+              <InfoItem name="Gradient (V)" desc="Fade from primary to secondary color. Curve traces your stroke; Rectangle fills the selection; Point radiates from a click; Dots paints only individually-clicked pixels (press Enter to apply). Direction can follow start→finish or a chosen Angle. Thickness sets the stroke width." />
+              <InfoItem name="Smush (N)" desc="Smear/blend pixels like wet paint. Drag to mix neighboring colors." />
+              <InfoItem name="Eyedropper (I)" desc="Pick a color from the canvas into the primary color." />
+              <InfoItem name="Hand (H)" desc="Pan around the canvas. Right-click also pans." />
+              <InfoItem name="Select (M)" desc="Select a rectangle to edit, move, copy, or fill only that area. Drag the handles to resize." />
+              <InfoItem name="Shade (S)" desc="Lighten, darken, tint, or fade the pixels under the brush." />
+              <InfoItem name="Stamp" desc="Paste a copied image repeatedly, with rotation and scaling." />
+              <InfoItem name="Recolor" desc="Adjust hue, saturation, brightness, and contrast, or invert/grayscale, with a live preview." />
+            </div>
+            <div className="info-shortcuts">
+              <h4>Shortcuts</h4>
+              <span>Ctrl+Z undo · Ctrl+Shift+Z redo · Ctrl+C copy · Ctrl+V paste · Ctrl+wheel zoom · Ctrl+` grid</span>
+            </div>
+            <div className="modal-actions">
+              <Button variant="primary" onClick={() => setInfoOpen(false)}>
+                Close
               </Button>
             </div>
           </div>
@@ -1771,8 +1885,69 @@ export function Editor(): JSX.Element {
                   >
                     Rectangle
                   </button>
+                  <button
+                    className={gradientMode === 'point' ? 'active' : ''}
+                    onClick={() => setGradientMode('point')}
+                  >
+                    Point
+                  </button>
+                  <button
+                    className={gradientMode === 'dots' ? 'active' : ''}
+                    onClick={() => setGradientMode('dots')}
+                  >
+                    Dots
+                  </button>
                 </div>
               </div>
+              <div className="gradient-mode-row">
+                <span className="panel-title-sm">Direction</span>
+                <div className="seg">
+                  <button
+                    className={!gradientUseAngle ? 'active' : ''}
+                    onClick={() => setGradientUseAngle(false)}
+                  >
+                    Start→finish
+                  </button>
+                  <button
+                    className={gradientUseAngle ? 'active' : ''}
+                    onClick={() => setGradientUseAngle(true)}
+                  >
+                    Angle
+                  </button>
+                </div>
+              </div>
+              {gradientUseAngle && (
+                <div className="brush-size-row">
+                  <span className="panel-title-sm">Angle</span>
+                  <input
+                    className="brush-input"
+                    type="number"
+                    min={0}
+                    max={359}
+                    value={gradientAngle}
+                    onChange={(e) => setGradientAngle(parseInt(e.target.value, 10) || 0)}
+                  />
+                </div>
+              )}
+              {(gradientMode === 'curve' || gradientMode === 'point' || gradientMode === 'dots') && (
+                <div className="brush-size-row">
+                  <span className="panel-title-sm">Thickness</span>
+                  <input
+                    className="brush-input"
+                    type="number"
+                    min={1}
+                    max={63}
+                    step={2}
+                    value={gradientThickness}
+                    onChange={(e) => setGradientThickness(parseInt(e.target.value, 10) || 1)}
+                  />
+                </div>
+              )}
+              {gradientMode === 'dots' && (
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-3)' }}>
+                  Click individual pixels to select them, then press Enter to apply the gradient.
+                </p>
+              )}
               <div className="secondary-color-row">
                 <button
                   className="secondary-swap"
@@ -1860,6 +2035,19 @@ export function Editor(): JSX.Element {
             </Button>
             <Button variant="ghost" onClick={() => setResizeOpen(true)} disabled={!texture}>
               Resize
+            </Button>
+          </div>
+          <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+            <Button variant="ghost" onClick={() => selectAll()} disabled={!texture} title="Select the whole texture">
+              Select all
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => clearSelection()}
+              disabled={!texture || !texture.selection}
+              title="Clear the current selection"
+            >
+              Deselect
             </Button>
           </div>
           {renaming && texture && (
@@ -2010,6 +2198,15 @@ export function Editor(): JSX.Element {
   );
 }
 
+function InfoItem({ name, desc }: { name: string; desc: string }): JSX.Element {
+  return (
+    <div className="info-item">
+      <div className="info-item-name">{name}</div>
+      <div className="info-item-desc">{desc}</div>
+    </div>
+  );
+}
+
 function RenameRow({
   initial,
   onCommit,
@@ -2020,33 +2217,71 @@ function RenameRow({
   onCancel: () => void;
 }): JSX.Element {
   const [value, setValue] = useState(initial);
+  const [allPaths, setAllPaths] = useState<string[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    void window.api.textures
+      .readVanillaIndex()
+      .then((idx) => {
+        if (alive && idx) setAllPaths(idx.textures.map((t) => t.path));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const q = value.trim().toLowerCase();
+  const matches = q
+    ? allPaths.filter((p) => p.toLowerCase().includes(q)).slice(0, 12)
+    : allPaths.slice(0, 12);
+
   return (
-    <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-      <input
-        className="color-input"
-        style={{ background: 'var(--bg-1)', flex: 1, padding: '4px 6px', fontSize: 12 }}
-        value={value}
-        placeholder="Texture name"
-        autoFocus
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onCommit(value);
-          if (e.key === 'Escape') onCancel();
-        }}
-      />
-      <button
-        onClick={() => onCommit(value)}
-        style={{
-          padding: '4px 8px',
-          borderRadius: 4,
-          background: 'var(--accent)',
-          color: 'var(--accent-fg)',
-          fontSize: 11,
-          fontWeight: 600,
-        }}
-      >
-        Save
-      </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <input
+          className="color-input"
+          style={{ background: 'var(--bg-1)', flex: 1, padding: '4px 6px', fontSize: 12 }}
+          value={value}
+          placeholder="Texture name (e.g. item/diamond_sword)"
+          autoFocus
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onCommit(value);
+            if (e.key === 'Escape') onCancel();
+          }}
+        />
+        <button
+          onClick={() => onCommit(value)}
+          style={{
+            padding: '4px 8px',
+            borderRadius: 4,
+            background: 'var(--accent)',
+            color: 'var(--accent-fg)',
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          Save
+        </button>
+      </div>
+      {matches.length > 0 && (
+        <div className="rename-suggestions">
+          {matches.map((s) => (
+            <button
+              key={s}
+              className="rename-suggestion"
+              onClick={() => {
+                setValue(s);
+                onCommit(s);
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2108,6 +2343,11 @@ import eyedropperIcon from '../assets/tools/eyedropper.png';
 import handIcon from '../assets/tools/hand.png';
 import selectIcon from '../assets/tools/select.png';
 import undoIcon from '../assets/tools/undo.png';
+import gradientIcon from '../assets/tools/gradient.png';
+import smushIcon from '../assets/tools/smush.png';
+import shadeIcon from '../assets/tools/shade.png';
+import stampIcon from '../assets/tools/stamp.png';
+import recolorIcon from '../assets/tools/recolor.png';
 
 const TOOL_ICON_URLS: Partial<Record<ToolId, string>> = {
   pencil: pencilIcon,
@@ -2116,6 +2356,11 @@ const TOOL_ICON_URLS: Partial<Record<ToolId, string>> = {
   eyedropper: eyedropperIcon,
   hand: handIcon,
   select: selectIcon,
+  gradient: gradientIcon,
+  smush: smushIcon,
+  shade: shadeIcon,
+  stamp: stampIcon,
+  recolor: recolorIcon,
 };
 
 function ToolIcon({ id }: { id: ToolId }): JSX.Element {

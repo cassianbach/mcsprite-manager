@@ -42,14 +42,11 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
 }
 
 // Color-wheel radial mapping. Inner disc: hue × saturation (center → edge at
-// the current brightness). Outer ring (beyond WHEEL_RIM): fades value to black
-// so the outermost edge is selectable black regardless of the brightness slider.
-const WHEEL_RIM = 0.85;
+// the current brightness). The whole disc maps radius to saturation; there is
+// no outer rim fade.
 function wheelParams(d: number, val: number): { sat: number; v: number } {
   const dd = Math.min(1, Math.max(0, d));
-  if (dd <= WHEEL_RIM) return { sat: dd / WHEEL_RIM, v: val };
-  const f = (dd - WHEEL_RIM) / (1 - WHEEL_RIM);
-  return { sat: 1, v: val * (1 - f) };
+  return { sat: dd, v: val };
 }
 
 function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
@@ -78,7 +75,7 @@ export function ColorPicker({ value, onChange, onCommit }: Props): JSX.Element {
   const [hue, setHue] = useState(h);
   const [sat, setSat] = useState(s);
   const [val, setVal] = useState(v);
-  const [rad, setRad] = useState(Math.min(1, v === 0 ? 1 : s * WHEEL_RIM));
+  const [rad, setRad] = useState(Math.min(1, s));
   const [recent, setRecent] = useState<string[]>(() => loadRecent());
   const [hexInput, setHexInput] = useState(value.replace(/^#/, '').toUpperCase());
 
@@ -92,7 +89,7 @@ export function ColorPicker({ value, onChange, onCommit }: Props): JSX.Element {
     setHue(hh);
     setSat(ss);
     setVal(vv);
-    setRad(Math.min(1, vv === 0 ? 1 : ss * WHEEL_RIM));
+    setRad(Math.min(1, ss));
     setAlpha(r.a);
     setHexInput(value.replace(/^#/, '').toUpperCase());
   }, [value]);

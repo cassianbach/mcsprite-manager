@@ -336,7 +336,10 @@ export const useProject = create<ProjectStore>()(
         if (s.texture.path.startsWith('untitled_')) {
           s.texture.path = trimmed;
         }
+        s.texture.modified = true;
+        s.save = { status: 'dirty', lastSavedAt: s.save.lastSavedAt };
       });
+      scheduleSave(get);
     },
 
     animateStatic: () => {

@@ -1,15 +1,6 @@
 # MCsprite Manager
 
-A Windows desktop app for:
-
-- **Minecraft texture editing** — paint, recolor, animate the vanilla catalog, export a `.zip` resource pack with `pack.mcmeta`
-- **Game sprite editing** — standalone pixel art with PNG / GIF / sprite-sheet exports
-- **Project workspaces** — isolate edits per project, see exactly what you modified
-- **Collaboration** — share a link and edit the same project with others (work in progress)
-
-## Coming soon
-
-- **Minecraft version changer** — switch the target MC version for your resource pack
+A Windows desktop app for Minecraft resource packs and pixel art — paint, animate, and manage textures with vanilla catalog, project workspaces, bulk editing, and community uploads.
 
 ## Prerequisites
 
@@ -58,16 +49,4 @@ dev.bat             Sets PATH and runs `npm run dev`
 build-installer.bat Sets PATH and runs `npm run package`
 ```
 
-## Notes on disk layout
 
-Because C: was full, the project and all caches live on D::
-
-- Project: `D:\texture-editor\`
-- node_modules: `D:\texture-editor\node_modules\`
-- npm cache: `D:\npm-cache\`
-- npm tmp: `D:\npm-tmp\`
-- Electron cache: `D:\electron-cache\`
-- Electron download cache: `D:\electron-download\`
-- App data (created at runtime): `%APPDATA%\texture-editor\projects\<uuid>\`
-
-User projects are stored under `%APPDATA%` (C:) by default — if you'd rather keep them on D: too, change `PROJECTS_ROOT` in `src/main/projectStore.ts` to `join('D:', 'texture-editor-projects')`.

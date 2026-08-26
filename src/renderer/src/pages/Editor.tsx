@@ -1602,17 +1602,6 @@ export function Editor(): JSX.Element {
           {save.status === 'saving' ? 'Saving…' : 'Save'}
         </Button>
         <div style={{ marginLeft: 'auto' }}>
-          <Button
-            variant={collabStatus !== 'offline' ? 'primary' : 'ghost'}
-            onClick={() => setCollabOpen((v) => !v)}
-            title="Collaborate — share a link to edit together"
-          >
-            <span
-              className={'status-dot ' + (collabStatus === 'connected' ? 'saved' : collabStatus === 'connecting' ? 'dirty' : 'idle')}
-              style={{ marginRight: 6 }}
-            />
-            {collabStatus !== 'offline' ? 'Collab' : 'Collaborate'}
-          </Button>
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/catalog`)}>
             Catalog
           </Button>
@@ -1762,97 +1751,9 @@ export function Editor(): JSX.Element {
         {collabOpen && (
           <div className="panel collab-panel">
             <h4 className="panel-title">Collaborate</h4>
-            {collabStatus === 'offline' ? (
-              <>
-                <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--fg-3)' }}>
-                  Start a session to share a link, or join someone else&apos;s.
-                </p>
-                <Button variant="primary" onClick={() => void startCollabSession(relayInput.trim() || undefined)} disabled={!texture}>
-                  Start session
-                </Button>
-                <input
-                  className="color-input"
-                  style={{ marginTop: 8, width: '100%', background: 'var(--bg-1)', padding: '4px 6px', fontSize: 11 }}
-                  placeholder="Relay URL (optional, for internet)"
-                  value={relayInput}
-                  onChange={(e) => setRelayInput(e.target.value)}
-                />
-                <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
-                  <input
-                    className="color-input"
-                    style={{ flex: 1, background: 'var(--bg-1)', padding: '4px 6px', fontSize: 12 }}
-                    placeholder="Paste invite link"
-                    value={joinLink}
-                    onChange={(e) => setJoinLink(e.target.value)}
-                  />
-                  <Button variant="ghost" onClick={joinCollabSession}>
-                    Join
-                  </Button>
-                </div>
-                {collabError && (
-                  <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--danger)' }}>
-                    {collabError}
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="panel-row">
-                  <span>Status</span>
-                  <span style={{ color: collabStatus === 'connected' ? 'var(--accent)' : 'var(--fg-3)' }}>
-                    {collabStatus === 'connected' ? 'Connected' : 'Connecting…'}
-                  </span>
-                </div>
-                {collabError && (
-                  <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--danger)' }}>
-                    {collabError}
-                  </p>
-                )}
-                {collabIsHost && collabHostInfo && (
-                  <div style={{ marginTop: 6 }}>
-                    <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4 }}>Invite link</div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <input
-                        className="color-input"
-                        style={{ flex: 1, background: 'var(--bg-1)', padding: '4px 6px', fontSize: 11 }}
-                        readOnly
-                        value={collabHostInfo.link}
-                      />
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          void navigator.clipboard?.writeText(collabHostInfo.link);
-                          setCollabCopied(true);
-                          setTimeout(() => setCollabCopied(false), 1500);
-                        }}
-                      >
-                        {collabCopied ? 'Copied' : 'Copy'}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4 }}>
-                    Peers ({collabPeers.length})
-                  </div>
-                  {collabPeers.length === 0 ? (
-                    <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-3)' }}>Waiting for others…</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {collabPeers.map((p) => (
-                        <div key={p.clientId} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.color }} />
-                          {p.name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <Button variant="ghost" onClick={leaveCollabSession} style={{ marginTop: 10 }}>
-                  Leave session
-                </Button>
-              </>
-            )}
+            <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--fg-3)' }}>
+              Collab is currently disabled.
+            </p>
           </div>
         )}
         <div className="panel">

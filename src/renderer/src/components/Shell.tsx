@@ -59,12 +59,10 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
           </NavLink>
         </div>
 
-        <div className="sidebar-divider" />
-
         <div className="sidebar-section">
-          <div className="sidebar-label">Share</div>
-          <NavLink to="/collab" className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}>
-            <Icon name="link" /> Collaborate
+          <div className="sidebar-label">Community</div>
+          <NavLink to="/uploaded" className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}>
+            <Icon name="folder" /> Uploaded
           </NavLink>
         </div>
 

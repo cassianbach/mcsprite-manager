@@ -167,6 +167,37 @@ const api = {
       return () => ipcRenderer.removeListener(IPC.update.onStatus, listener);
     },
   },
+  library: {
+    listTextures: (): Promise<Array<{ id: string; path: string; name: string; width: number; height: number; uploader: string; uploadedAt: number }>> =>
+      ipcRenderer.invoke(IPC.library.listTextures),
+    listPacks: (): Promise<Array<{ id: string; fileName: string; originalFileName: string; description: string; textureCount: number; sizeBytes: number; uploader: string; uploadedAt: number }>> =>
+      ipcRenderer.invoke(IPC.library.listPacks),
+    uploadTexture: (): Promise<{ cancelled?: boolean; meta?: unknown }> => ipcRenderer.invoke(IPC.library.uploadTexture),
+    uploadPack: (): Promise<{ cancelled?: boolean; meta?: unknown }> => ipcRenderer.invoke(IPC.library.uploadPack),
+    deleteTexture: (id: string, reason?: string): Promise<boolean> => ipcRenderer.invoke(IPC.library.deleteTexture, id, reason),
+    deletePack: (id: string, reason?: string): Promise<boolean> => ipcRenderer.invoke(IPC.library.deletePack, id, reason),
+    getModerationLog: (): Promise<Array<{ id: string; type: string; deletedBy: string | null; reason: string; author: string; originalName: string; deletedAt: number }>> => ipcRenderer.invoke(IPC.library.getModerationLog),
+    updateTextureTags: (id: string, tags: string[]): Promise<unknown> => ipcRenderer.invoke(IPC.library.updateTextureTags, id, tags),
+    updatePackTags: (id: string, tags: string[]): Promise<unknown> => ipcRenderer.invoke(IPC.library.updatePackTags, id, tags),
+    addToProject: (projectId: string, libraryId: string): Promise<{ ok: boolean; newId?: string }> =>
+      ipcRenderer.invoke(IPC.library.addToProject, projectId, libraryId),
+    getMyHandle: (): Promise<string | null> => ipcRenderer.invoke(IPC.library.getMyHandle),
+    setMyHandle: (handle: string): Promise<string | null> => ipcRenderer.invoke(IPC.library.setMyHandle, handle),
+    getAdmins: (): Promise<string[]> => ipcRenderer.invoke(IPC.library.getAdmins),
+    addAdmin: (handle: string): Promise<string[]> => ipcRenderer.invoke(IPC.library.addAdmin, handle),
+    removeAdmin: (handle: string): Promise<string[]> => ipcRenderer.invoke(IPC.library.removeAdmin, handle),
+    isAdmin: (handle: string): Promise<boolean> => ipcRenderer.invoke(IPC.library.isAdmin, handle),
+    getTextureDataUrl: (id: string): Promise<string | null> => ipcRenderer.invoke(IPC.library.getTextureDataUrl, id),
+  },
+  auth: {
+    login: (): Promise<{ handle: string; token: string }> => ipcRenderer.invoke(IPC.auth.login),
+    logout: (): Promise<void> => ipcRenderer.invoke(IPC.auth.logout),
+    getHandle: (): Promise<string | null> => ipcRenderer.invoke(IPC.auth.getHandle),
+    startDeviceFlow: (): Promise<{ device_code: string; user_code: string; verification_uri: string; verification_uri_complete?: string; expires_in: number; interval: number }> =>
+      ipcRenderer.invoke(IPC.auth.startDeviceFlow),
+    pollDeviceFlow: (deviceCode: string, interval?: number, expiresIn?: number): Promise<{ handle: string; token: string }> =>
+      ipcRenderer.invoke(IPC.auth.pollDeviceFlow, deviceCode, interval, expiresIn),
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

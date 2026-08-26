@@ -8,6 +8,7 @@ import { Catalog } from './pages/Catalog';
 import { BulkEdit } from './pages/BulkEdit';
 import { ImportExport } from './pages/ImportExport';
 import { CollabLanding } from './pages/CollabLanding';
+import { UploadedCatalog } from './pages/UploadedCatalog';
 import { useSettings } from './store/settings';
 import { collab, setPendingJoin } from './collab/collabClient';
 
@@ -58,6 +59,7 @@ export function App(): JSX.Element {
         <Route path="/project/:id/catalog" element={<Catalog />} />
         <Route path="/project/:id/bulk" element={<BulkEdit />} />
         <Route path="/project/:id/export" element={<ImportExport />} />
+        <Route path="/uploaded" element={<UploadedCatalog />} />
         <Route path="/collab" element={<CollabLanding />} />
         <Route path="/sprite" element={<SpriteEditor />} />
         <Route path="*" element={<Navigate to="/projects" replace />} />

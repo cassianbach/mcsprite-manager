@@ -38,6 +38,8 @@ import {
   readVanillaPng,
   addVanillaTexture,
 } from './projectStore';
+import * as userLibrary from './userLibrary';
+import * as auth from './auth';
 import { startCollabServer, stopCollabServer, getLanAddress } from './collabServer';
 import { writeAppIconSet } from './logoRaster';
 
@@ -363,6 +365,43 @@ function registerIpc(): void {
     }
     return updateState;
   });
+
+  // User library (My Uploads / Community local)
+  ipcMain.handle(IPC.library.listTextures, () => userLibrary.listUserTextures());
+  ipcMain.handle(IPC.library.listPacks, () => userLibrary.listUserPacks());
+  ipcMain.handle(IPC.library.uploadTexture, () => userLibrary.uploadUserTexture());
+  ipcMain.handle(IPC.library.uploadPack, () => userLibrary.uploadUserPack());
+  ipcMain.handle(IPC.library.deleteTexture, (_e, id: string, reason?: string) => userLibrary.deleteUserTexture(id, reason));
+  ipcMain.handle(IPC.library.deletePack, (_e, id: string, reason?: string) => userLibrary.deleteUserPack(id, reason));
+  ipcMain.handle(IPC.library.getModerationLog, () => userLibrary.getModerationLog());
+  ipcMain.handle(IPC.library.updateTextureTags, (_e, id: string, tags: string[]) => userLibrary.updateTextureTags(id, tags));
+  ipcMain.handle(IPC.library.updatePackTags, (_e, id: string, tags: string[]) => userLibrary.updatePackTags(id, tags));
+  ipcMain.handle(IPC.library.addToProject, (_e, projectId: string, libraryId: string) =>
+    userLibrary.addUserTextureToProject(projectId, libraryId),
+  );
+  ipcMain.handle(IPC.library.getMyHandle, () => userLibrary.getMyHandle());
+  ipcMain.handle(IPC.library.setMyHandle, (_e, handle: string) => userLibrary.setMyHandle(handle));
+  ipcMain.handle(IPC.library.getAdmins, () => userLibrary.getAdmins());
+  ipcMain.handle(IPC.library.addAdmin, (_e, handle: string) => userLibrary.addAdmin(handle));
+  ipcMain.handle(IPC.library.removeAdmin, (_e, handle: string) => userLibrary.removeAdmin(handle));
+  ipcMain.handle(IPC.library.isAdmin, (_e, handle: string) => userLibrary.isAdmin(handle));
+  ipcMain.handle(IPC.library.getTextureDataUrl, async (_e, id: string): Promise<string | null> => {
+    try {
+      const { join } = await import('node:path');
+      const p = join(app.getPath('userData'), 'user-library', 'textures', `${id}.png`);
+      if (!existsSync(p)) return null;
+      const buf = await fs.readFile(p);
+      return `data:image/png;base64,${buf.toString('base64')}`;
+    } catch { return null; }
+  });
+
+  ipcMain.handle(IPC.auth.login, () => auth.loginWithGithub());
+  ipcMain.handle(IPC.auth.logout, () => auth.logout());
+  ipcMain.handle(IPC.auth.getHandle, () => auth.getVerifiedHandle());
+  ipcMain.handle(IPC.auth.startDeviceFlow, () => auth.startDeviceFlow());
+  ipcMain.handle(IPC.auth.pollDeviceFlow, (_e, deviceCode: string, interval?: number, expiresIn?: number) =>
+    auth.pollDeviceFlow(deviceCode, interval, expiresIn),
+  );
 }
 
 app.whenReady().then(() => {

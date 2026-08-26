@@ -15,8 +15,9 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,css,md,json}\"",
-    "package": "electron-vite build && electron-builder --win --x64",
-    "package:portable": "electron-vite build && electron-builder --win portable --x64",
+    "package": "npm run icon && electron-vite build && electron-builder --win --x64",
+    "package:portable": "npm run icon && electron-vite build && electron-builder --win portable --x64",
+    "icon": "tsx scripts/generate-icon.ts",
     "sync:vanilla": "tsx scripts/sync-vanilla.ts",
     "relay": "node relay-server.mjs"
   },

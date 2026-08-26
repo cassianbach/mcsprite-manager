@@ -112,8 +112,8 @@ export async function syncVanilla(): Promise<string> {
 function inferPackFormat(id: string): number {
   // Approximate; Phase 5 will keep an authoritative table.
   const v = parseInt(id.split('.').slice(1).join('.'), 10);
-  if (!Number.isFinite(v)) return 34;
-  if (v >= 21) return 34;
+  if (!Number.isFinite(v)) return 75;
+  if (v >= 21) return 75;
   if (v >= 20) return 26;
   if (v >= 19) return 15;
   if (v >= 18) return 8;

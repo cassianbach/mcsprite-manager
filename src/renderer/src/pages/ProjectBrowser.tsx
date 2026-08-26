@@ -36,7 +36,7 @@ export function ProjectBrowser(): JSX.Element {
     const project = await window.api.projects.create({
       name: newName,
       kind: newKind,
-      packFormat: newKind === 'mc' ? 34 : undefined,
+      packFormat: newKind === 'mc' ? 75 : undefined,
     });
     setShowCreate(false);
     setNewName('My Project');

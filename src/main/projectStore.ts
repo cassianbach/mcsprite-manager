@@ -593,7 +593,11 @@ export async function exportZipTo(
   opts?: { packFormat?: number; description?: string },
 ): Promise<ExportResult> {
   const project = await readProject(projectId);
-  const packFormat = opts?.packFormat ?? project?.packFormat ?? 32;
+  // Target 1.21.11 by default. Guard against stale pre-1.21 values (e.g. 34)
+  // that would make MC run path "fixers" and corrupt modern texture layouts.
+  const stored = project?.packFormat;
+  const packFormat =
+    opts?.packFormat ?? (stored && stored >= 46 ? stored : 75);
   const description =
     opts?.description ?? project?.description ?? project?.name ?? 'Resource Pack';
 
@@ -635,7 +639,10 @@ export async function exportZipTo(
           if (relPath === 'pack.mcmeta') {
             try {
               const parsed = JSON.parse(readFileSync(full, 'utf8'));
-              parsed.pack = { ...(parsed.pack ?? {}) };
+              // Always stamp the correct pack format; a stale value (e.g. an
+              // old format 34 pack loaded into 1.21.11) causes MC to run its
+              // path "fixers" and break armor layers / drop netherite.
+              parsed.pack = { ...(parsed.pack ?? {}), pack_format: packFormat };
               archive.append(JSON.stringify(parsed, null, 2), { name: 'pack.mcmeta' });
               packMcmetaWritten = true;
               continue;

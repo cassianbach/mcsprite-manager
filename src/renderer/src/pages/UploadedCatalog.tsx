@@ -1,17 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '../components/Button';
 import './Catalog.css';
 
 interface UserTex { id: string; path: string; name: string; width: number; height: number; uploader: string; uploadedAt: number; tags?: string[]; }
 interface UserPack { id: string; fileName: string; originalFileName: string; description: string; textureCount: number; sizeBytes: number; uploader: string; uploadedAt: number; tags?: string[]; }
 
-function TexturePreview({ id, w, h }: { id: string; w: number; h: number }) {
+const COMMUNITY_BASE = 'https://mcsprite-manager-community.cassian-raban-bach.workers.dev';
+
+function TexturePreview({ id, w, h, remote }: { id: string; w: number; h: number; remote?: boolean }) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    void window.api.library.getTextureDataUrl(id).then((url) => { if (alive) setSrc(url); });
+    if (remote) {
+      setSrc(`${COMMUNITY_BASE}/api/catalog/texture/${id}.png`);
+    } else {
+      void window.api.library.getTextureDataUrl(id).then((url) => { if (alive) setSrc(url); });
+    }
     return () => { alive = false; };
-  }, [id]);
+  }, [id, remote]);
   if (!src) return <div style={{ width: 96, height: 96, background: 'var(--bg-2)', borderRadius: 4 }} />;
   const scale = Math.min(96 / w, 96 / h, 6);
   return <img src={src} alt="" width={Math.round(w * scale)} height={Math.round(h * scale)} style={{ imageRendering: 'pixelated', borderRadius: 2, background: 'var(--bg-2)' }} />;
@@ -44,9 +51,13 @@ function TagEditor({ tags, onChange, canEdit }: { tags: string[]; onChange: (tag
 
 export function UploadedCatalog(): JSX.Element {
   const navigate = useNavigate();
+  const [scope, setScope] = useState<'community' | 'mine'>('community');
   const [tab, setTab] = useState<'textures' | 'packs'>('textures');
   const [textures, setTextures] = useState<UserTex[]>([]);
   const [packs, setPacks] = useState<UserPack[]>([]);
+  const [communityTextures, setCommunityTextures] = useState<UserTex[]>([]);
+  const [communityPacks, setCommunityPacks] = useState<UserPack[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [addTarget, setAddTarget] = useState('');
   const [handle, setHandle] = useState<string | null>(null);
@@ -56,6 +67,8 @@ export function UploadedCatalog(): JSX.Element {
   const [loggingIn, setLoggingIn] = useState(false);
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: 'texture' | 'pack'; id: string; name: string; scope: 'community' | 'mine' } | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
   const isAdmin = !!handle && admins.map((a) => a.toLowerCase()).includes(handle.toLowerCase());
 
   async function refresh() {
@@ -77,6 +90,17 @@ export function UploadedCatalog(): JSX.Element {
   }
   useEffect(() => { void refresh(); }, []);
 
+  async function refreshCommunity() {
+    setCommunityLoading(true);
+    try {
+      const res = await window.api.community.list({ q: search || undefined, tag: tagFilter || undefined });
+      setCommunityTextures((res.textures ?? []) as UserTex[]);
+      setCommunityPacks((res.packs ?? []) as UserPack[]);
+    } catch (e) { setMsg(`Community: ${(e as Error).message}`); }
+    finally { setCommunityLoading(false); }
+  }
+  useEffect(() => { if (scope === 'community') void refreshCommunity(); }, [scope, search, tagFilter]);
+
   const [deviceInfo, setDeviceInfo] = useState<{ user_code: string; verification_uri: string } | null>(null);
 
   async function onLogin() {
@@ -95,27 +119,53 @@ export function UploadedCatalog(): JSX.Element {
   }
   async function onUploadTexture() {
     if (!handle) { setMsg('Please login with GitHub first.'); return; }
-    const res = await window.api.library.uploadTexture() as { cancelled?: boolean };
-    if (!res.cancelled) { setMsg('Texture uploaded to My Uploads.'); void refresh(); }
+    if (scope === 'community') {
+      const res = await window.api.community.uploadTexture() as { cancelled?: boolean };
+      if (!res.cancelled) { setMsg('Texture uploaded to Community.'); void refreshCommunity(); }
+    } else {
+      const res = await window.api.library.uploadTexture() as { cancelled?: boolean };
+      if (!res.cancelled) { setMsg('Texture uploaded to My Uploads.'); void refresh(); }
+    }
   }
   async function onUploadPack() {
     if (!handle) { setMsg('Please login with GitHub first.'); return; }
-    const res = await window.api.library.uploadPack() as { cancelled?: boolean };
-    if (!res.cancelled) { setMsg('Pack uploaded to My Uploads.'); void refresh(); }
+    if (scope === 'community') {
+      const res = await window.api.community.uploadPack() as { cancelled?: boolean };
+      if (!res.cancelled) { setMsg('Pack uploaded to Community.'); void refreshCommunity(); }
+    } else {
+      const res = await window.api.library.uploadPack() as { cancelled?: boolean };
+      if (!res.cancelled) { setMsg('Pack uploaded to My Uploads.'); void refresh(); }
+    }
   }
   async function onDeleteTex(id: string) {
-    const t = textures.find((x) => x.id === id);
+    const list = scope === 'community' ? communityTextures : textures;
+    const t = list.find((x) => x.id === id);
     if (!isAdmin && t && t.uploader !== handle) { setMsg('Only owner or admin can delete.'); return; }
-    const reason = isAdmin ? (prompt('Delete reason:') ?? null) : '';
-    if (reason === null) return;
-    try { await window.api.library.deleteTexture(id, reason); void refresh(); } catch (e) { setMsg((e as Error).message); }
+    setDeleteTarget({ kind: 'texture', id, name: t?.name ?? id, scope });
+    setDeleteReason('');
   }
   async function onDeletePack(id: string) {
-    const p = packs.find((x) => x.id === id);
+    const list = scope === 'community' ? communityPacks : packs;
+    const p = list.find((x) => x.id === id);
     if (!isAdmin && p && p.uploader !== handle) { setMsg('Only owner or admin can delete.'); return; }
-    const reason = prompt('Delete reason (stored for moderation log):');
-    if (reason === null) return;
-    try { await window.api.library.deletePack(id, reason); void refresh(); } catch (e) { setMsg((e as Error).message); }
+    setDeleteTarget({ kind: 'pack', id, name: p?.originalFileName ?? id, scope });
+    setDeleteReason('');
+  }
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    try {
+      if (deleteTarget.scope === 'community') {
+        if (deleteTarget.kind === 'texture') await window.api.community.deleteTexture(deleteTarget.id, deleteReason);
+        else await window.api.community.deletePack(deleteTarget.id, deleteReason);
+        void refreshCommunity();
+      } else {
+        if (deleteTarget.kind === 'texture') await window.api.library.deleteTexture(deleteTarget.id, deleteReason);
+        else await window.api.library.deletePack(deleteTarget.id, deleteReason);
+        void refresh();
+      }
+      setMsg('Deleted.');
+      setDeleteTarget(null);
+    } catch (e) { setMsg((e as Error).message); }
   }
   async function onAddToProject(texId: string) {
     if (!addTarget) { setMsg('Pick a project first.'); return; }
@@ -144,29 +194,37 @@ export function UploadedCatalog(): JSX.Element {
 
   const allTags = useMemo(() => {
     const c = new Map<string, number>();
-    for (const t of textures) for (const tag of (t.tags ?? [])) c.set(tag, (c.get(tag) ?? 0) + 1);
-    for (const p of packs) for (const tag of (p.tags ?? [])) c.set(tag, (c.get(tag) ?? 0) + 1);
+    const srcTex = scope === 'community' ? communityTextures : textures;
+    const srcPack = scope === 'community' ? communityPacks : packs;
+    for (const t of srcTex) for (const tag of (t.tags ?? [])) c.set(tag, (c.get(tag) ?? 0) + 1);
+    for (const p of srcPack) for (const tag of (p.tags ?? [])) c.set(tag, (c.get(tag) ?? 0) + 1);
     return [...c.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
-  }, [textures, packs]);
+  }, [textures, packs, communityTextures, communityPacks, scope]);
 
   const q = search.trim().toLowerCase();
-  const filteredTextures = useMemo(() => textures.filter((t) => {
+  const srcTextures = scope === 'community' ? communityTextures : textures;
+  const srcPacks = scope === 'community' ? communityPacks : packs;
+  const filteredTextures = useMemo(() => srcTextures.filter((t) => {
     if (tagFilter && !(t.tags ?? []).includes(tagFilter)) return false;
     if (!q) return true;
     return t.name.toLowerCase().includes(q) || t.path.toLowerCase().includes(q) || t.uploader.toLowerCase().includes(q) || (t.tags ?? []).some((x) => x.includes(q));
-  }), [textures, q, tagFilter]);
-  const filteredPacks = useMemo(() => packs.filter((p) => {
+  }), [srcTextures, q, tagFilter]);
+  const filteredPacks = useMemo(() => srcPacks.filter((p) => {
     if (tagFilter && !(p.tags ?? []).includes(tagFilter)) return false;
     if (!q) return true;
     return p.originalFileName.toLowerCase().includes(q) || p.uploader.toLowerCase().includes(q) || (p.tags ?? []).some((x) => x.includes(q));
-  }), [packs, q, tagFilter]);
+  }), [srcPacks, q, tagFilter]);
 
   return (
     <div className="catalog">
       <header className="catalog-head">
         <h1>Community Catalogue</h1>
-        <p className="catalog-sub">My Uploads are local. Community (Fly.io) comes next — this builds the local foundation.</p>
+        <p className="catalog-sub">Browse and upload textures & packs. Community is global (Cloudflare); My Uploads is local.</p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+          <div className="seg">
+            <button className={scope === 'community' ? 'active' : ''} onClick={() => setScope('community')}>Community</button>
+            <button className={scope === 'mine' ? 'active' : ''} onClick={() => setScope('mine')}>My Uploads</button>
+          </div>
           {handle ? (
             <>
               <span style={{ fontSize: 12, fontWeight: 600 }}>@{handle}</span>
@@ -194,6 +252,7 @@ export function UploadedCatalog(): JSX.Element {
         <button className="btn" onClick={onUploadTexture} disabled={!handle}>Upload Texture</button>
         <button className="btn" onClick={onUploadPack} disabled={!handle}>Upload Pack</button>
         <button className="btn btn-ghost" onClick={() => navigate('/projects')}>Back to Projects</button>
+        {communityLoading && <span style={{ fontSize: 12, color: 'var(--fg-3)', alignSelf: 'center' }}>Loading community…</span>}
         {msg && <span style={{ fontSize: 12, color: 'var(--fg-2)', alignSelf: 'center' }}>{msg}</span>}
       </div>
 
@@ -210,17 +269,17 @@ export function UploadedCatalog(): JSX.Element {
       )}
 
       <div className="catalog-tabs" style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button className={`btn ${tab === 'textures' ? '' : 'btn-ghost'}`} onClick={() => setTab('textures')}>Textures ({filteredTextures.length}/{textures.length})</button>
-        <button className={`btn ${tab === 'packs' ? '' : 'btn-ghost'}`} onClick={() => setTab('packs')}>Packs ({filteredPacks.length}/{packs.length})</button>
+        <button className={`btn ${tab === 'textures' ? '' : 'btn-ghost'}`} onClick={() => setTab('textures')}>Textures ({filteredTextures.length}/{srcTextures.length})</button>
+        <button className={`btn ${tab === 'packs' ? '' : 'btn-ghost'}`} onClick={() => setTab('packs')}>Packs ({filteredPacks.length}/{srcPacks.length})</button>
       </div>
 
       {tab === 'textures' ? (
-        filteredTextures.length === 0 ? <p style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 12 }}>{textures.length === 0 ? 'No uploads yet. Login and use Upload Texture.' : 'No matches.'}</p> :
+        filteredTextures.length === 0 ? <p style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 12 }}>{srcTextures.length === 0 ? (scope === 'community' ? 'No community uploads yet.' : 'No uploads yet. Login and use Upload Texture.') : 'No matches.'}</p> :
         <div className="catalog-grid" style={{ marginTop: 12 }}>
           {filteredTextures.map((t) => (
             <div key={t.id} className="catalog-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div className="catalog-thumb-wrap" style={{ minHeight: 120 }}>
-                <TexturePreview id={t.id} w={t.width} h={t.height} />
+                <TexturePreview id={t.id} w={t.width} h={t.height} remote={scope === 'community'} />
               </div>
               <div className="catalog-text" style={{ flex: 1 }}>
                 <div className="catalog-name">{t.name}</div>
@@ -232,13 +291,13 @@ export function UploadedCatalog(): JSX.Element {
                   {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
                 <button className="btn btn-ghost" onClick={() => onAddToProject(t.id)} style={{ fontSize: 11, padding: '4px 8px' }}>Add</button>
-                <button className="btn btn-ghost" onClick={() => onDeleteTex(t.id)} style={{ fontSize: 11, padding: '4px 8px' }}>Delete</button>
+                {(isAdmin || t.uploader === handle) && <button className="btn btn-ghost" onClick={() => onDeleteTex(t.id)} style={{ fontSize: 11, padding: '4px 8px' }}>Delete</button>}
               </div>
             </div>
           ))}
         </div>
       ) : (
-        filteredPacks.length === 0 ? <p style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 12 }}>{packs.length === 0 ? 'No packs yet. Login and use Upload Pack.' : 'No matches.'}</p> :
+        filteredPacks.length === 0 ? <p style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 12 }}>{srcPacks.length === 0 ? (scope === 'community' ? 'No community packs yet.' : 'No packs yet. Login and use Upload Pack.') : 'No matches.'}</p> :
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
           {filteredPacks.map((p) => (
             <div key={p.id} className="catalog-card" style={{ padding: 10 }}>
@@ -247,7 +306,7 @@ export function UploadedCatalog(): JSX.Element {
                   <div style={{ fontSize: 12, fontWeight: 600 }}>{p.originalFileName}</div>
                   <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{p.textureCount} textures · {(p.sizeBytes/1024).toFixed(0)} KB · by {p.uploader}</div>
                 </div>
-                {isAdmin && <button className="btn btn-ghost" onClick={() => onDeletePack(p.id)} style={{ color: 'var(--danger)' }}>Delete</button>}
+                {(isAdmin || p.uploader === handle) && <button className="btn btn-ghost" onClick={() => onDeletePack(p.id)} style={{ color: 'var(--danger)' }}>Delete</button>}
               </div>
               <TagEditor tags={p.tags ?? []} onChange={(nt) => onTagPack(p.id, nt)} canEdit={isAdmin || p.uploader === handle} />
             </div>
@@ -274,6 +333,36 @@ export function UploadedCatalog(): JSX.Element {
           </>
         )}
       </section>
+
+      {deleteTarget && (
+        <div className="modal-overlay" onClick={() => setDeleteTarget(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Delete {deleteTarget.kind}?</h3>
+            <p>
+              This will permanently delete <strong>{deleteTarget.name}</strong>.
+            </p>
+            {isAdmin && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, color: 'var(--fg-2)', display: 'block', marginBottom: 4 }}>
+                  Reason (stored in moderation log)
+                </label>
+                <input
+                  className="color-input"
+                  style={{ width: '100%', background: 'var(--bg-1)', padding: '6px 8px', fontSize: 12 }}
+                  placeholder="e.g. NSFW, copyright, spam…"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
+            <div className="modal-actions">
+              <Button variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+              <Button variant="danger" onClick={confirmDelete}>Delete</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

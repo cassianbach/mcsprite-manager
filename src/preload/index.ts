@@ -198,6 +198,15 @@ const api = {
     pollDeviceFlow: (deviceCode: string, interval?: number, expiresIn?: number): Promise<{ handle: string; token: string }> =>
       ipcRenderer.invoke(IPC.auth.pollDeviceFlow, deviceCode, interval, expiresIn),
   },
+  community: {
+    list: (opts?: { q?: string; tag?: string; type?: string }): Promise<{ textures: unknown[]; packs: unknown[] }> =>
+      ipcRenderer.invoke(IPC.community.list, opts),
+    uploadTexture: (): Promise<{ cancelled?: boolean; meta?: unknown }> => ipcRenderer.invoke(IPC.community.uploadTexture),
+    uploadPack: (): Promise<{ cancelled?: boolean; meta?: unknown }> => ipcRenderer.invoke(IPC.community.uploadPack),
+    deleteTexture: (id: string, reason?: string): Promise<boolean> => ipcRenderer.invoke(IPC.community.deleteTexture, id, reason),
+    deletePack: (id: string, reason?: string): Promise<boolean> => ipcRenderer.invoke(IPC.community.deletePack, id, reason),
+    getModeration: (): Promise<unknown[]> => ipcRenderer.invoke(IPC.community.getModeration),
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

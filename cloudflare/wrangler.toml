@@ -1,0 +1,7 @@
+name = "mcsprite-manager-community"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+
+[[kv_namespaces]]
+binding = "COMMUNITY"
+id = "4cfb9968464746baa29f5f32679f2d27"

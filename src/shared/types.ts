@@ -335,4 +335,12 @@ export const IPC = {
     startDeviceFlow: 'auth:startDeviceFlow',
     pollDeviceFlow: 'auth:pollDeviceFlow',
   },
+  community: {
+    list: 'community:list',
+    uploadTexture: 'community:uploadTexture',
+    uploadPack: 'community:uploadPack',
+    deleteTexture: 'community:deleteTexture',
+    deletePack: 'community:deletePack',
+    getModeration: 'community:getModeration',
+  },
 } as const;

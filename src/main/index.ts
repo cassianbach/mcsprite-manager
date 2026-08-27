@@ -40,6 +40,7 @@ import {
 } from './projectStore';
 import * as userLibrary from './userLibrary';
 import * as auth from './auth';
+import * as community from './community';
 import { startCollabServer, stopCollabServer, getLanAddress } from './collabServer';
 import { writeAppIconSet } from './logoRaster';
 
@@ -402,6 +403,14 @@ function registerIpc(): void {
   ipcMain.handle(IPC.auth.pollDeviceFlow, (_e, deviceCode: string, interval?: number, expiresIn?: number) =>
     auth.pollDeviceFlow(deviceCode, interval, expiresIn),
   );
+
+  // Community (Cloudflare Worker)
+  ipcMain.handle(IPC.community.list, (_e, opts?: { q?: string; tag?: string; type?: string }) => community.communityList(opts));
+  ipcMain.handle(IPC.community.uploadTexture, () => community.communityUploadTexture());
+  ipcMain.handle(IPC.community.uploadPack, () => community.communityUploadPack());
+  ipcMain.handle(IPC.community.deleteTexture, (_e, id: string, reason?: string) => community.communityDeleteTexture(id, reason));
+  ipcMain.handle(IPC.community.deletePack, (_e, id: string, reason?: string) => community.communityDeletePack(id, reason));
+  ipcMain.handle(IPC.community.getModeration, () => community.communityGetModeration());
 }
 
 app.whenReady().then(() => {

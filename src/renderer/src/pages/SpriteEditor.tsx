@@ -92,6 +92,9 @@ export function SpriteEditor(): JSX.Element {
   const texture = useProject((s) => s.texture);
   const loadProject = useProject((s) => s.load);
   const applyEdit = useProject((s) => s.applyEdit);
+  const beginStroke = useProject((s) => s.beginStroke);
+  const applyStrokeEdit = useProject((s) => s.applyStrokeEdit);
+  const endStroke = useProject((s) => s.endStroke);
   const closeProject = useProject((s) => s.close);
   const resizeTexture = useProject((s) => s.resize);
   const renameTexture = useProject((s) => s.rename);
@@ -164,11 +167,12 @@ export function SpriteEditor(): JSX.Element {
   }): void {
     if (!texture) return;
     if (e.type === 'leave') {
-      if (pointer.current.drawing || pointer.current.selMode) {
+      if (pointer.current.drawing) {
         pointer.current.drawing = false;
         pointer.current.last = null;
-        pointer.current.selMode = null;
+        endStroke();
       }
+      pointer.current.selMode = null;
       return;
     }
     const tool = activeToolRef.current;
@@ -204,6 +208,7 @@ export function SpriteEditor(): JSX.Element {
       if (e.type === 'down') {
         pointer.current.drawing = true;
         pointer.current.last = e.pixel;
+        beginStroke();
         const pixels = new Uint8ClampedArray(texture.current);
         const tuple = hexToTuple(color);
         let rect: { x: number; y: number; w: number; h: number } | null = null;
@@ -214,7 +219,7 @@ export function SpriteEditor(): JSX.Element {
               : paintPixel(pixels, px, py, texture.width, texture.height, tuple, brushSizeRef.current);
           if (r) rect = unionRect(rect, r);
         }
-        if (rect) applyEdit(pixels, rect);
+        if (rect) applyStrokeEdit(pixels, rect);
       } else if (e.type === 'move' && pointer.current.drawing) {
         const last = pointer.current.last ?? e.pixel;
         const basePts: Array<[number, number]> = e.shiftKey
@@ -251,10 +256,11 @@ export function SpriteEditor(): JSX.Element {
           }
         }
         pointer.current.last = e.pixel;
-        if (combined) applyEdit(pixels, combined);
+        if (combined) applyStrokeEdit(pixels, combined);
       } else if (e.type === 'up') {
         pointer.current.drawing = false;
         pointer.current.last = null;
+        endStroke();
       }
     } else if (tool === 'fill') {
       if (e.type === 'down') {
@@ -271,6 +277,7 @@ export function SpriteEditor(): JSX.Element {
       if (e.type === 'down') {
         pointer.current.drawing = true;
         pointer.current.last = e.pixel;
+        beginStroke();
         const pixels = new Uint8ClampedArray(texture.current);
         const ui = useEditorUi.getState();
         const tint = hexToTuple(ui.primaryColor);
@@ -285,7 +292,7 @@ export function SpriteEditor(): JSX.Element {
           ui.shadeMode === 'fade' ? Math.max(1, Math.round(ui.shadeStrength * 2.55)) : ui.shadeStrength,
           tint,
         );
-        if (rect) applyEdit(pixels, rect);
+        if (rect) applyStrokeEdit(pixels, rect);
       } else if (e.type === 'move' && pointer.current.drawing) {
         const last = pointer.current.last ?? e.pixel;
         const linePts = e.shiftKey
@@ -310,10 +317,11 @@ export function SpriteEditor(): JSX.Element {
           if (r) combined = unionRect(combined, r);
         }
         pointer.current.last = e.pixel;
-        if (combined) applyEdit(pixels, combined);
+        if (combined) applyStrokeEdit(pixels, combined);
       } else if (e.type === 'up') {
         pointer.current.drawing = false;
         pointer.current.last = null;
+        endStroke();
       }
     } else if (tool === 'gradient') {
       if (e.type === 'down') {
@@ -363,13 +371,14 @@ export function SpriteEditor(): JSX.Element {
       if (e.type === 'down') {
         pointer.current.drawing = true;
         pointer.current.last = e.pixel;
+        beginStroke();
         const pixels = new Uint8ClampedArray(texture.current);
         let combined: { x: number; y: number; w: number; h: number } | null = null;
         for (const [px, py] of applyMirror(e.pixel.x, e.pixel.y)) {
           const r = smushPixels(pixels, texture.width, texture.height, px, py, brushSizeRef.current, 0.6);
           if (r) combined = unionRect(combined, r);
         }
-        if (combined) applyEdit(pixels, combined);
+        if (combined) applyStrokeEdit(pixels, combined);
       } else if (e.type === 'move' && pointer.current.drawing) {
         const last = pointer.current.last ?? e.pixel;
         const linePts = e.shiftKey
@@ -384,10 +393,11 @@ export function SpriteEditor(): JSX.Element {
           }
         }
         pointer.current.last = e.pixel;
-        if (combined) applyEdit(pixels, combined);
+        if (combined) applyStrokeEdit(pixels, combined);
       } else if (e.type === 'up') {
         pointer.current.drawing = false;
         pointer.current.last = null;
+        endStroke();
       }
     } else if (tool === 'eyedropper') {
       if (e.type === 'down') {

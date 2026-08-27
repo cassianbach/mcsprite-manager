@@ -63,6 +63,12 @@ interface ProjectStore {
 
   /** Apply a single-edit op: snapshots the previous pixels + new pixels + dirty rect into history. */
   applyEdit: (next: Uint8ClampedArray, rect: { x: number; y: number; w: number; h: number }) => void;
+  /** Begin a grouped stroke (a press-drag-release). Subsequent applyStrokeEdit calls update pixels without separate history entries. */
+  beginStroke: () => void;
+  /** Apply a pixel change within an active stroke (updates pixels, no history push). */
+  applyStrokeEdit: (next: Uint8ClampedArray, rect: { x: number; y: number; w: number; h: number }) => void;
+  /** End a grouped stroke, committing a single history entry for the whole drag. */
+  endStroke: () => void;
 
   undo: () => void;
   redo: () => void;
@@ -108,6 +114,24 @@ interface ProjectStore {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Stroke grouping state: a press-drag-release is collapsed into a single history entry.
+let strokeBefore: Uint8ClampedArray | null = null;
+let strokeRect: { x: number; y: number; w: number; h: number } | null = null;
+let strokeFrameIndex = 0;
+let strokeActive = false;
+
+function unionRectLocal(
+  a: { x: number; y: number; w: number; h: number } | null,
+  b: { x: number; y: number; w: number; h: number },
+): { x: number; y: number; w: number; h: number } {
+  if (!a) return b;
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  const x1 = Math.max(a.x + a.w, b.x + b.w);
+  const y1 = Math.max(a.y + a.h, b.y + b.h);
+  return { x, y, w: x1 - x, h: y1 - y };
+}
 
 export const useProject = create<ProjectStore>()(
   immer((set, get) => ({
@@ -191,6 +215,66 @@ export const useProject = create<ProjectStore>()(
         s.texture.modified = true;
         s.save = { status: 'dirty', lastSavedAt: s.save.lastSavedAt };
       });
+      scheduleSave(get);
+    },
+
+    beginStroke: () => {
+      const t = get().texture;
+      if (!t) return;
+      strokeActive = true;
+      strokeBefore = new Uint8ClampedArray(t.current);
+      strokeRect = null;
+      strokeFrameIndex = t.currentFrameIndex;
+      set((s) => {
+        if (s.texture) s.texture.redoStack.length = 0;
+      });
+    },
+
+    applyStrokeEdit: (next, rect) => {
+      const t = get().texture;
+      if (!t) return;
+      set((s) => {
+        if (!s.texture) return;
+        s.texture.current = new Uint8ClampedArray(next);
+        if (s.texture.animation) {
+          s.texture.animation.frames[s.texture.currentFrameIndex].pixels = new Uint8ClampedArray(next);
+        }
+        s.texture.modified = true;
+        s.save = { status: 'dirty', lastSavedAt: s.save.lastSavedAt };
+      });
+      strokeRect = unionRectLocal(strokeRect, rect);
+      scheduleSave(get);
+    },
+
+    endStroke: () => {
+      const t = get().texture;
+      if (!t) return;
+      if (!strokeActive || !strokeBefore) {
+        strokeActive = false;
+        strokeBefore = null;
+        strokeRect = null;
+        return;
+      }
+      const before = strokeBefore;
+      const after = new Uint8ClampedArray(t.current);
+      const isNoop = pixelsEqual(before, after);
+      const entry: HistoryEntry = {
+        before,
+        after,
+        rect: strokeRect ?? { x: 0, y: 0, w: t.width, h: t.height },
+        frameIndex: strokeFrameIndex,
+      };
+      set((s) => {
+        if (!s.texture) return;
+        if (!isNoop) {
+          s.texture.history.push(entry);
+          if (s.texture.history.length > HISTORY_LIMIT) s.texture.history.shift();
+        }
+        s.texture.redoStack.length = 0;
+      });
+      strokeActive = false;
+      strokeBefore = null;
+      strokeRect = null;
       scheduleSave(get);
     },
 

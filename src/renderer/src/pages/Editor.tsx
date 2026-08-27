@@ -164,6 +164,9 @@ export function Editor(): JSX.Element {
   const loadProject = useProject((s) => s.load);
   const closeProject = useProject((s) => s.close);
   const applyEdit = useProject((s) => s.applyEdit);
+  const beginStroke = useProject((s) => s.beginStroke);
+  const applyStrokeEdit = useProject((s) => s.applyStrokeEdit);
+  const endStroke = useProject((s) => s.endStroke);
   const undo = useProject((s) => s.undo);
   const redo = useProject((s) => s.redo);
   const reset = useProject((s) => s.reset);
@@ -646,11 +649,12 @@ export function Editor(): JSX.Element {
       // Pointer left the canvas: end any in-progress drawing/select so we
       // don't keep painting after the cursor is released off-screen.
       if (e.type === 'leave') {
-        if (pointer.current.drawing || pointer.current.selMode) {
+        if (pointer.current.drawing) {
           pointer.current.drawing = false;
           pointer.current.last = null;
-          pointer.current.selMode = null;
+          endStroke();
         }
+        pointer.current.selMode = null;
         return;
       }
 
@@ -691,6 +695,7 @@ export function Editor(): JSX.Element {
         if (e.type === 'down') {
           pointer.current.drawing = true;
           pointer.current.last = e.pixel;
+          beginStroke();
           const pixels = new Uint8ClampedArray(texture.current);
           const tuple = hexToTuple(color);
           let rect: { x: number; y: number; w: number; h: number } | null = null;
@@ -703,7 +708,7 @@ export function Editor(): JSX.Element {
             }
             if (r) rect = unionRect(rect, r);
           }
-          if (rect) applyEdit(pixels, rect);
+          if (rect) applyStrokeEdit(pixels, rect);
         } else if (e.type === 'move' && pointer.current.drawing) {
           const last = pointer.current.last ?? e.pixel;
           const basePts: Array<[number, number]> = e.shiftKey
@@ -744,10 +749,11 @@ export function Editor(): JSX.Element {
             }
           }
           pointer.current.last = e.pixel;
-          if (combined) applyEdit(pixels, combined);
+          if (combined) applyStrokeEdit(pixels, combined);
         } else if (e.type === 'up') {
           pointer.current.drawing = false;
           pointer.current.last = null;
+          endStroke();
         }
       } else if (tool === 'fill') {
         if (e.type === 'down') {
@@ -765,6 +771,7 @@ export function Editor(): JSX.Element {
         if (e.type === 'down') {
           pointer.current.drawing = true;
           pointer.current.last = e.pixel;
+          beginStroke();
           const pixels = new Uint8ClampedArray(texture.current);
           const ui = useEditorUi.getState();
           const tint = hexToTuple(ui.primaryColor);
@@ -779,7 +786,7 @@ export function Editor(): JSX.Element {
             ui.shadeMode === 'fade' ? Math.max(1, Math.round(ui.shadeStrength * 2.55)) : ui.shadeStrength,
             tint,
           );
-          if (rect) applyEdit(pixels, rect);
+          if (rect) applyStrokeEdit(pixels, rect);
         } else if (e.type === 'move' && pointer.current.drawing) {
           const last = pointer.current.last ?? e.pixel;
           const linePts = e.shiftKey
@@ -804,10 +811,11 @@ export function Editor(): JSX.Element {
             if (r) combined = unionRect(combined, r);
           }
           pointer.current.last = e.pixel;
-          if (combined) applyEdit(pixels, combined);
+          if (combined) applyStrokeEdit(pixels, combined);
         } else if (e.type === 'up') {
           pointer.current.drawing = false;
           pointer.current.last = null;
+          endStroke();
         }
       } else if (tool === 'gradient') {
         const ui = useEditorUi.getState();
@@ -894,13 +902,14 @@ export function Editor(): JSX.Element {
         if (e.type === 'down') {
           pointer.current.drawing = true;
           pointer.current.last = e.pixel;
+          beginStroke();
           const pixels = new Uint8ClampedArray(texture.current);
           let combined: { x: number; y: number; w: number; h: number } | null = null;
           for (const [px, py] of applyMirror(e.pixel.x, e.pixel.y)) {
             const r = smushPixels(pixels, texture.width, texture.height, px, py, brushSizeRef.current, 0.6);
             if (r) combined = unionRect(combined, r);
           }
-          if (combined) applyEdit(pixels, combined);
+          if (combined) applyStrokeEdit(pixels, combined);
         } else if (e.type === 'move' && pointer.current.drawing) {
           const last = pointer.current.last ?? e.pixel;
           const linePts = e.shiftKey
@@ -915,10 +924,11 @@ export function Editor(): JSX.Element {
             }
           }
           pointer.current.last = e.pixel;
-          if (combined) applyEdit(pixels, combined);
+          if (combined) applyStrokeEdit(pixels, combined);
         } else if (e.type === 'up') {
           pointer.current.drawing = false;
           pointer.current.last = null;
+          endStroke();
         }
       } else if (tool === 'eyedropper') {
         if (e.type === 'down') {
@@ -1178,7 +1188,7 @@ export function Editor(): JSX.Element {
         }
       }
     },
-    [texture, applyEdit],
+    [texture, applyEdit, beginStroke, applyStrokeEdit, endStroke],
   );
 
   // Clipboard ops are handled via store actions; keyboard shortcuts are below.

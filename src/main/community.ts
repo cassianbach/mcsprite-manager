@@ -51,6 +51,7 @@ export async function communityList(opts?: { q?: string; tag?: string; type?: st
 
 async function pickAndUpload(kind: 'texture' | 'pack'): Promise<{ cancelled?: boolean; meta?: unknown }> {
   const isTexture = kind === 'texture';
+  const maxBytes = isTexture ? 5 * 1024 * 1024 : 20 * 1024 * 1024;
   const res = await dialog.showOpenDialog({
     title: isTexture ? 'Upload texture (PNG)' : 'Upload pack (ZIP)',
     properties: ['openFile'],
@@ -58,14 +59,31 @@ async function pickAndUpload(kind: 'texture' | 'pack'): Promise<{ cancelled?: bo
   });
   if (res.canceled || res.filePaths.length === 0) return { cancelled: true };
   const src = res.filePaths[0];
-  const buf = await fs.readFile(src);
+  let buf: Buffer;
+  try {
+    buf = await fs.readFile(src);
+  } catch {
+    throw new Error('Could not read the selected file. Check the path and try again.');
+  }
+  if (buf.length > maxBytes) {
+    throw new Error(`File too large — max ${isTexture ? '5 MB' : '20 MB'} for a ${isTexture ? 'texture' : 'pack'}.`);
+  }
   const form = new FormData();
   form.append('file', new Blob([buf]), basename(src));
   const headers = await authHeaders();
-  const r = await fetch(`${BASE_URL}/api/catalog/${isTexture ? 'textures' : 'packs'}`, { method: 'POST', headers, body: form });
+  let r: Response;
+  try {
+    r = await fetch(`${BASE_URL}/api/catalog/${isTexture ? 'textures' : 'packs'}`, { method: 'POST', headers, body: form });
+  } catch (e) {
+    throw new Error(`Upload failed (network): ${(e as Error).message}`);
+  }
   if (!r.ok) {
-    const j = (await r.json().catch(() => ({ error: `HTTP ${r.status}` }))) as { error?: string };
-    throw new Error(j.error || `Upload failed: ${r.status}`);
+    let detail = `HTTP ${r.status}`;
+    try {
+      const j = (await r.json().catch(() => null)) as { error?: string } | null;
+      if (j && j.error) detail = j.error;
+    } catch {}
+    throw new Error(`Upload failed: ${detail}`);
   }
   return { meta: (await r.json()) as unknown };
 }

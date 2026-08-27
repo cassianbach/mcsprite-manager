@@ -87,6 +87,7 @@ async function saveIndex(env, textures, packs) {
 
 export default {
   async fetch(request, env) {
+   try {
     const url = new URL(request.url);
     const method = request.method;
 
@@ -190,6 +191,12 @@ export default {
       if (buf.length > maxBytes) return json({ error: isTexture ? 'texture too large (max 5 MB)' : 'pack too large (max 20 MB)' }, 413);
       const id = crypto.randomUUID();
       const b64 = bytesToBase64(buf);
+      // KV values are capped at 25 MB; base64 inflates the raw bytes by ~33%,
+      // so a 20 MB pack becomes ~26.7 MB and would be rejected by KV. Catch it
+      // here with a clear message instead of a generic 500.
+      if (b64.length > 25 * 1024 * 1024) {
+        return json({ error: 'File is too large to store (KV limit 25 MB after encoding). Please upload a smaller file.' }, 413);
+      }
       if (isTexture) {
         const meta = { id, path: originalName.replace(/\.png$/i, ''), name: originalName.replace(/\.png$/i, ''), width: 16, height: 16, uploader: handle, uploadedAt: Date.now(), sizeBytes: buf.length, originalFileName: originalName, tags: [] };
         await env.COMMUNITY.put(`textures/${id}.png`, b64);
@@ -277,5 +284,9 @@ export default {
     }
 
     return json({ error: 'not found' }, 404);
+   } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    return json({ error: `Server error: ${msg}` }, 500);
+   }
   },
 };

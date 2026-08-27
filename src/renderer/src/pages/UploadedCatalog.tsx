@@ -132,23 +132,27 @@ export function UploadedCatalog(): JSX.Element {
   }
   async function onUploadTexture() {
     if (!handle) { setMsg('Please login with GitHub first.'); return; }
-    if (scope === 'community') {
-      const res = await window.api.community.uploadTexture() as { cancelled?: boolean };
-      if (!res.cancelled) { setMsg('Texture uploaded to Community.'); void refreshCommunity(); }
-    } else {
-      const res = await window.api.library.uploadTexture() as { cancelled?: boolean };
-      if (!res.cancelled) { setMsg('Texture uploaded to My Uploads.'); void refresh(); }
-    }
+    try {
+      if (scope === 'community') {
+        const res = await window.api.community.uploadTexture() as { cancelled?: boolean };
+        if (!res.cancelled) { setMsg('Texture uploaded to Community.'); void refreshCommunity(); }
+      } else {
+        const res = await window.api.library.uploadTexture() as { cancelled?: boolean };
+        if (!res.cancelled) { setMsg('Texture uploaded to My Uploads.'); void refresh(); }
+      }
+    } catch (e) { setMsg(`Texture upload failed: ${(e as Error).message}`); }
   }
   async function onUploadPack() {
     if (!handle) { setMsg('Please login with GitHub first.'); return; }
-    if (scope === 'community') {
-      const res = await window.api.community.uploadPack() as { cancelled?: boolean };
-      if (!res.cancelled) { setMsg('Pack uploaded to Community.'); void refreshCommunity(); }
-    } else {
-      const res = await window.api.library.uploadPack() as { cancelled?: boolean };
-      if (!res.cancelled) { setMsg('Pack uploaded to My Uploads.'); void refresh(); }
-    }
+    try {
+      if (scope === 'community') {
+        const res = await window.api.community.uploadPack() as { cancelled?: boolean };
+        if (!res.cancelled) { setMsg('Pack uploaded to Community.'); void refreshCommunity(); }
+      } else {
+        const res = await window.api.library.uploadPack() as { cancelled?: boolean };
+        if (!res.cancelled) { setMsg('Pack uploaded to My Uploads.'); void refresh(); }
+      }
+    } catch (e) { setMsg(`Pack upload failed: ${(e as Error).message}`); }
   }
   async function onDeleteTex(id: string) {
     const list = scope === 'community' ? communityTextures : textures;

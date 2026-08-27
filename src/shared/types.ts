@@ -346,5 +346,8 @@ export const IPC = {
     updatePackTags: 'community:updatePackTags',
     addToProject: 'community:addToProject',
     addPackToProject: 'community:addPackToProject',
+    getAdmins: 'community:getAdmins',
+    addAdmin: 'community:addAdmin',
+    removeAdmin: 'community:removeAdmin',
   },
 } as const;

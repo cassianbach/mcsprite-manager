@@ -121,6 +121,37 @@ export default {
       return json(log);
     }
 
+    // GET /api/admin/admins — list admins (admin only)
+    if (method === 'GET' && url.pathname === '/api/admin/admins') {
+      const handle = await verifyHandle(request);
+      if (!handle || !(await isAdmin(env, handle))) return json({ error: 'admin only' }, 403);
+      return json({ admins: await getAdmins(env) });
+    }
+
+    // POST /api/admin/admins — add admin (admin only)
+    if (method === 'POST' && url.pathname === '/api/admin/admins') {
+      const handle = await verifyHandle(request);
+      if (!handle || !(await isAdmin(env, handle))) return json({ error: 'admin only' }, 403);
+      let target = '';
+      try { const body = await request.json(); target = String(body.handle || '').trim().toLowerCase(); } catch {}
+      if (!target) return json({ error: 'missing handle' }, 400);
+      const admins = await getAdmins(env);
+      if (!admins.includes(target)) admins.push(target);
+      await writeJson(env, 'admins.json', { admins });
+      return json({ admins });
+    }
+
+    // DELETE /api/admin/admins/:handle — remove admin (admin only, cannot remove cassianbach)
+    if (method === 'DELETE' && url.pathname.startsWith('/api/admin/admins/')) {
+      const handle = await verifyHandle(request);
+      if (!handle || !(await isAdmin(env, handle))) return json({ error: 'admin only' }, 403);
+      const target = decodeURIComponent(url.pathname.split('/').pop() || '').toLowerCase();
+      if (target === 'cassianbach') return json({ error: 'cannot remove cassianbach' }, 400);
+      const admins = (await getAdmins(env)).filter((a) => a !== target);
+      await writeJson(env, 'admins.json', { admins });
+      return json({ admins });
+    }
+
     // POST upload
     if (method === 'POST' && (url.pathname === '/api/catalog/textures' || url.pathname === '/api/catalog/packs')) {
       const isTexture = url.pathname.endsWith('/textures');

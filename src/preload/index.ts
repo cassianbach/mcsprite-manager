@@ -210,6 +210,9 @@ const api = {
     updatePackTags: (id: string, tags: string[]): Promise<unknown> => ipcRenderer.invoke(IPC.community.updatePackTags, id, tags),
     addToProject: (projectId: string, id: string): Promise<{ ok: boolean; newId?: string }> => ipcRenderer.invoke(IPC.community.addToProject, projectId, id),
     addPackToProject: (projectId: string, id: string): Promise<{ ok: boolean; imported?: number }> => ipcRenderer.invoke(IPC.community.addPackToProject, projectId, id),
+    getAdmins: (): Promise<string[]> => ipcRenderer.invoke(IPC.community.getAdmins),
+    addAdmin: (handle: string): Promise<string[]> => ipcRenderer.invoke(IPC.community.addAdmin, handle),
+    removeAdmin: (handle: string): Promise<string[]> => ipcRenderer.invoke(IPC.community.removeAdmin, handle),
   },
 };
 

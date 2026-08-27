@@ -97,6 +97,28 @@ export async function communityGetModeration(): Promise<unknown[]> {
   return (await r.json()) as unknown[];
 }
 
+export async function communityGetAdmins(): Promise<string[]> {
+  const headers = await authHeaders();
+  const r = await fetch(`${BASE_URL}/api/admin/admins`, { headers });
+  if (!r.ok) throw new Error('Admin only');
+  const j = (await r.json()) as { admins: string[] };
+  return j.admins ?? [];
+}
+export async function communityAddAdmin(handle: string): Promise<string[]> {
+  const headers = { ...(await authHeaders()), 'Content-Type': 'application/json' };
+  const r = await fetch(`${BASE_URL}/api/admin/admins`, { method: 'POST', headers, body: JSON.stringify({ handle }) });
+  if (!r.ok) { const j = (await r.json().catch(() => ({ error: `HTTP ${r.status}` }))) as { error?: string }; throw new Error(j.error || 'Add admin failed'); }
+  const j = (await r.json()) as { admins: string[] };
+  return j.admins ?? [];
+}
+export async function communityRemoveAdmin(handle: string): Promise<string[]> {
+  const headers = await authHeaders();
+  const r = await fetch(`${BASE_URL}/api/admin/admins/${encodeURIComponent(handle)}`, { method: 'DELETE', headers });
+  if (!r.ok) { const j = (await r.json().catch(() => ({ error: `HTTP ${r.status}` }))) as { error?: string }; throw new Error(j.error || 'Remove admin failed'); }
+  const j = (await r.json()) as { admins: string[] };
+  return j.admins ?? [];
+}
+
 export async function communityAddToProject(projectId: string, id: string): Promise<{ ok: boolean; newId?: string }> {
   const res = await fetch(`${BASE_URL}/api/catalog/texture/${id}.png`);
   if (!res.ok) return { ok: false };

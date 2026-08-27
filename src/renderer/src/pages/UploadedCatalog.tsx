@@ -62,6 +62,7 @@ export function UploadedCatalog(): JSX.Element {
   const [addTarget, setAddTarget] = useState('');
   const [handle, setHandle] = useState<string | null>(null);
   const [admins, setAdmins] = useState<string[]>([]);
+  const [communityAdmins, setCommunityAdmins] = useState<string[]>([]);
   const [newAdmin, setNewAdmin] = useState('');
   const [msg, setMsg] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
@@ -69,7 +70,8 @@ export function UploadedCatalog(): JSX.Element {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ kind: 'texture' | 'pack'; id: string; name: string; scope: 'community' | 'mine' } | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
-  const isAdmin = !!handle && admins.map((a) => a.toLowerCase()).includes(handle.toLowerCase());
+  const activeAdmins = scope === 'community' ? communityAdmins : admins;
+  const isAdmin = !!handle && activeAdmins.map((a) => a.toLowerCase()).includes(handle.toLowerCase());
 
   async function refresh() {
     try {
@@ -96,6 +98,9 @@ export function UploadedCatalog(): JSX.Element {
       const res = await window.api.community.list({ q: search || undefined, tag: tagFilter || undefined });
       setCommunityTextures((res.textures ?? []) as UserTex[]);
       setCommunityPacks((res.packs ?? []) as UserPack[]);
+      if (handle) {
+        try { setCommunityAdmins(await window.api.community.getAdmins()); } catch {}
+      }
     } catch (e) { setMsg(`Community: ${(e as Error).message}`); }
     finally { setCommunityLoading(false); }
   }
@@ -188,14 +193,24 @@ export function UploadedCatalog(): JSX.Element {
   async function doAddAdmin() {
     if (!newAdmin.trim()) return;
     try {
-      const ads = await window.api.library.addAdmin(newAdmin) as string[];
-      setAdmins(ads); setNewAdmin(''); setMsg(`Admin added: ${newAdmin}`);
+      if (scope === 'community') {
+        const ads = await window.api.community.addAdmin(newAdmin) as string[];
+        setCommunityAdmins(ads); setNewAdmin(''); setMsg(`Community admin added: ${newAdmin}`);
+      } else {
+        const ads = await window.api.library.addAdmin(newAdmin) as string[];
+        setAdmins(ads); setNewAdmin(''); setMsg(`Admin added: ${newAdmin}`);
+      }
     } catch (e) { setMsg((e as Error).message); }
   }
   async function doRemoveAdmin(h: string) {
     try {
-      const ads = await window.api.library.removeAdmin(h) as string[];
-      setAdmins(ads);
+      if (scope === 'community') {
+        const ads = await window.api.community.removeAdmin(h) as string[];
+        setCommunityAdmins(ads);
+      } else {
+        const ads = await window.api.library.removeAdmin(h) as string[];
+        setAdmins(ads);
+      }
     } catch (e) { setMsg((e as Error).message); }
   }
   async function onTagTex(id: string, tags: string[]) {
@@ -349,7 +364,7 @@ export function UploadedCatalog(): JSX.Element {
               <button className="btn" onClick={doAddAdmin}>Add admin</button>
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-              {admins.map((a) => (
+              {activeAdmins.map((a) => (
                 <span key={a} style={{ fontSize: 12, border: '1px solid var(--line)', borderRadius: 6, padding: '2px 6px', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                   {a} {a !== 'cassianbach' && <button onClick={() => doRemoveAdmin(a)} style={{ color: 'var(--danger)' }}>×</button>}
                 </span>

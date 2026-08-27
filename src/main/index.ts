@@ -415,6 +415,9 @@ function registerIpc(): void {
   ipcMain.handle(IPC.community.updatePackTags, (_e, id: string, tags: string[]) => community.communityUpdatePackTags(id, tags));
   ipcMain.handle(IPC.community.addToProject, (_e, projectId: string, id: string) => community.communityAddToProject(projectId, id));
   ipcMain.handle(IPC.community.addPackToProject, (_e, projectId: string, id: string) => community.communityAddPackToProject(projectId, id));
+  ipcMain.handle(IPC.community.getAdmins, () => community.communityGetAdmins());
+  ipcMain.handle(IPC.community.addAdmin, (_e, handle: string) => community.communityAddAdmin(handle));
+  ipcMain.handle(IPC.community.removeAdmin, (_e, handle: string) => community.communityRemoveAdmin(handle));
 }
 
 app.whenReady().then(() => {

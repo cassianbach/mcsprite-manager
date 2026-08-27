@@ -27,6 +27,27 @@ async function writeJson(env, key, data) {
   await env.COMMUNITY.put(key, JSON.stringify(data));
 }
 
+// KV stores strings, so binary files are base64-encoded. Convert in chunks to
+// avoid "too many arguments" when spreading large (MB-scale) buffers.
+function bytesToBase64(bytes) {
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+function base64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  const chunk = 0x8000;
+  for (let i = 0; i < bin.length; i += chunk) {
+    const end = Math.min(i + chunk, bin.length);
+    for (let j = i; j < end; j++) out[j] = bin.charCodeAt(j);
+  }
+  return out;
+}
+
 async function getAdmins(env) {
   const j = await readJson(env, 'admins.json', { admins: ADMIN_SEED });
   const list = Array.isArray(j.admins) ? j.admins : ADMIN_SEED;
@@ -102,14 +123,14 @@ export default {
       const id = decodeURIComponent(url.pathname.replace('/api/catalog/texture/', '').replace(/\.png$/, ''));
       const b64 = await env.COMMUNITY.get(`textures/${id}.png`);
       if (!b64) return json({ error: 'not found' }, 404);
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const bytes = base64ToBytes(b64);
       return cors(new Response(bytes, { headers: { 'Content-Type': 'image/png' } }));
     }
     if (method === 'GET' && url.pathname.startsWith('/api/catalog/pack/')) {
       const id = decodeURIComponent(url.pathname.replace('/api/catalog/pack/', '').replace(/\.zip$/, ''));
       const b64 = await env.COMMUNITY.get(`packs/${id}.zip`);
       if (!b64) return json({ error: 'not found' }, 404);
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const bytes = base64ToBytes(b64);
       return cors(new Response(bytes, { headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${id}.zip"` } }));
     }
 
@@ -168,7 +189,7 @@ export default {
       const maxBytes = isTexture ? MAX_TEXTURE : MAX_PACK;
       if (buf.length > maxBytes) return json({ error: isTexture ? 'texture too large (max 5 MB)' : 'pack too large (max 20 MB)' }, 413);
       const id = crypto.randomUUID();
-      const b64 = btoa(String.fromCharCode(...buf));
+      const b64 = bytesToBase64(buf);
       if (isTexture) {
         const meta = { id, path: originalName.replace(/\.png$/i, ''), name: originalName.replace(/\.png$/i, ''), width: 16, height: 16, uploader: handle, uploadedAt: Date.now(), sizeBytes: buf.length, originalFileName: originalName, tags: [] };
         await env.COMMUNITY.put(`textures/${id}.png`, b64);

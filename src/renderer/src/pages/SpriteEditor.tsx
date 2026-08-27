@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useEditorUi, setTool, cycleMirror, setSecondaryColor, setGradientMode, setBrushSize, setSprayDensity, setSprayFalloff, setSprayOpacity, setFadeStrength, setFadeSoftness, setReplaceFrom, setReplaceTo, setReplaceTolerance } from '../store/editor';
+import { useEditorUi, setTool, cycleMirror, setSecondaryColor, setGradientMode, setBrushSize, setSprayDensity, setSprayFalloff, setSprayOpacity, setFadeStrength, setFadeSoftness, setReplaceFrom, setReplaceTo, setReplaceTolerance, recordColor } from '../store/editor';
 import type { ToolId } from '../store/editor';
 import { useProject } from '../store/project';
 import { CanvasViewport, type CanvasViewportHandle } from '../components/CanvasViewport';
@@ -33,6 +33,7 @@ import type { RescaleMode } from '../lib/canvas';
 import { rgbaToHex, hexToRgba, rgbaToHex as rgbaToHexFull } from '../lib/color';
 import { Button } from '../components/Button';
 import { ColorPicker } from '../components/ColorPicker';
+import { RecentPalette } from '../components/RecentPalette';
 import { ResizeDialog } from '../components/ResizeDialog';
 import { SpriteSheetDialog } from '../components/SpriteSheetDialog';
 import { ShadePanel } from '../components/ShadePanel';
@@ -43,6 +44,9 @@ import { encodeFramesToGif, encodeFramesToStripPng, downloadBytes } from '../lib
 import './Editor.css';
 
 const SPRITE_PROJECT_ID = '__sprite_default';
+
+// Tools that paint with the selected color (so we record it into Recent colors on stroke start)
+const PAINT_TOOLS = new Set<ToolId>(['pencil', 'spray', 'fill', 'gradient', 'shade']);
 
 async function downloadSpritePng(pixels: Uint8ClampedArray, width: number, height: number): Promise<void> {
   let blob: Blob;
@@ -197,6 +201,13 @@ export function SpriteEditor(): JSX.Element {
     }
     const tool = activeToolRef.current;
     const color = primaryColorRef.current;
+
+    // Record the actively-used color into Recent colors when a paint stroke begins.
+    if (e.type === 'down' && PAINT_TOOLS.has(tool)) {
+      const ui = useEditorUi.getState();
+      recordColor(ui.primaryColor);
+      if (tool === 'gradient') recordColor(ui.secondaryColor);
+    }
 
     const mirrorMode = useEditorUi.getState().mirror;
     const w = texture.width;
@@ -522,7 +533,9 @@ export function SpriteEditor(): JSX.Element {
     } else if (tool === 'eyedropper') {
       if (e.type === 'down') {
         const px = getPixel(texture.current, e.pixel.x, e.pixel.y, texture.width);
-        useEditorUi.setState({ primaryColor: rgbaToHex({ r: px[0], g: px[1], b: px[2], a: px[3] }) });
+        const hex = rgbaToHex({ r: px[0], g: px[1], b: px[2], a: px[3] });
+        useEditorUi.setState({ primaryColor: hex });
+        recordColor(hex);
       }
     } else if (tool === 'select') {
       const sel = texture.selection;
@@ -831,6 +844,7 @@ export function SpriteEditor(): JSX.Element {
         )}
       </div>
       <aside className="side">
+        <RecentPalette />
         <div className="panel">
           <h4 className="panel-title">Color</h4>
           {activeTool === 'gradient' && (
@@ -890,6 +904,7 @@ export function SpriteEditor(): JSX.Element {
               useEditorUi.setState(
                 activeColor === 'primary' ? { primaryColor: finalHex } : { secondaryColor: finalHex },
               );
+              recordColor(finalHex);
             }}
           />
           <div className="brush-size-row">

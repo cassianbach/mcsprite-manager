@@ -51,6 +51,9 @@ export interface EditorUiState {
   replaceTo: string; // hex (with alpha)
   replaceTolerance: number; // 0..255
 
+  // Recent colors palette (last 10 selected), always visible in the sidebar
+  recentColors: string[];
+
   // Recolor (preview/apply)
   recolor: {
     hue: number;        // -180..180
@@ -86,6 +89,7 @@ export const useEditorUi = create<EditorUiState>()(
     replaceFrom: '#ffffff',
     replaceTo: '#000000',
     replaceTolerance: 32,
+    recentColors: [],
     recolor: {
       hue: 0,
       saturation: 0,
@@ -223,6 +227,14 @@ export const setReplaceTo = (hex: string) =>
 export const setReplaceTolerance = (n: number) =>
   useEditorUi.setState((s) => {
     s.replaceTolerance = Math.max(0, Math.min(255, Math.round(n)));
+  });
+
+export const recordColor = (hex: string) =>
+  useEditorUi.setState((s) => {
+    const list = s.recentColors.filter((c) => c.toLowerCase() !== hex.toLowerCase());
+    list.unshift(hex);
+    // Keep the full history (collapsed view shows only the first 10).
+    s.recentColors = list.slice(0, 500);
   });
 
 export const setRecolor = (next: Partial<EditorUiState['recolor']>) =>

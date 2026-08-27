@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useEditorUi, setTool, setBrushSize, setShowGrid, cycleMirror, setRecolor, setSecondaryColor, setGradientMode, setGradientAngle, setGradientThickness, setGradientUseAngle, setSprayDensity, setSprayFalloff, setSprayOpacity, setFadeStrength, setFadeSoftness, setReplaceFrom, setReplaceTo, setReplaceTolerance } from '../store/editor';
+import { useEditorUi, setTool, setBrushSize, setShowGrid, cycleMirror, setRecolor, setSecondaryColor, setGradientMode, setGradientAngle, setGradientThickness, setGradientUseAngle, setSprayDensity, setSprayFalloff, setSprayOpacity, setFadeStrength, setFadeSoftness, setReplaceFrom, setReplaceTo, setReplaceTolerance, recordColor } from '../store/editor';
 import type { ToolId } from '../store/editor';
 import { useProject, canUndo, canRedo } from '../store/project';
 import { useClipboard } from '../store/clipboard';
 import type { CollabHostInfo, CollabTextureSync, TextureSource } from '@shared/types';
 import { CanvasViewport, type CanvasViewportHandle } from '../components/CanvasViewport';
 import { ColorPicker } from '../components/ColorPicker';
+import { RecentPalette } from '../components/RecentPalette';
 import { Button } from '../components/Button';
 import { ResizeDialog } from '../components/ResizeDialog';
 import { SpriteSheetDialog } from '../components/SpriteSheetDialog';
@@ -86,6 +87,9 @@ function toSync(t: SyncSource): CollabTextureSync {
     defaultFrameTicks: t.animation?.defaultFrameTicks ?? 2,
   };
 }
+
+// Tools that paint with the selected color (so we record it into Recent colors on stroke start)
+const PAINT_TOOLS = new Set<ToolId>(['pencil', 'spray', 'fill', 'gradient', 'shade']);
 
 const TOOLS: { id: ToolId; label: string; shortcut: string }[] = [
   { id: 'pencil', label: 'Pencil', shortcut: 'B' },
@@ -208,6 +212,7 @@ export function Editor(): JSX.Element {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [infoOpen, setInfoOpen] = useState(false);
+
 
   const activeTool = useEditorUi((s) => s.activeTool);
   const brushSize = useEditorUi((s) => s.brushSize);
@@ -673,6 +678,13 @@ export function Editor(): JSX.Element {
       const tool = activeToolRef.current;
       const color = primaryColorRef.current;
 
+      // Record the actively-used color into Recent colors when a paint stroke begins.
+      if (e.type === 'down' && PAINT_TOOLS.has(tool)) {
+        const ui = useEditorUi.getState();
+        recordColor(ui.primaryColor);
+        if (tool === 'gradient') recordColor(ui.secondaryColor);
+      }
+
       if (e.type === 'move') {
         setCursorPos(e.pixel);
       }
@@ -1070,6 +1082,7 @@ export function Editor(): JSX.Element {
           const px = getPixel(texture.current, e.pixel.x, e.pixel.y, texture.width);
           const hex = rgbaToHex({ r: px[0], g: px[1], b: px[2], a: px[3] });
           useEditorUi.setState({ primaryColor: hex });
+          recordColor(hex);
         }
       } else if (tool === 'select') {
         if (!texture) return;
@@ -1838,9 +1851,13 @@ export function Editor(): JSX.Element {
               <InfoItem name="Eyedropper (I)" desc="Pick a color from the canvas into the primary color." />
               <InfoItem name="Hand (H)" desc="Pan around the canvas. Right-click also pans." />
               <InfoItem name="Select (M)" desc="Select a rectangle to edit, move, copy, or fill only that area. Drag the handles to resize." />
-              <InfoItem name="Shade (S)" desc="Lighten, darken, tint, or fade the pixels under the brush." />
-              <InfoItem name="Stamp" desc="Paste a copied image repeatedly, with rotation and scaling." />
-              <InfoItem name="Recolor" desc="Adjust hue, saturation, brightness, and contrast, or invert/grayscale, with a live preview." />
+            <InfoItem name="Shade (S)" desc="Lighten, darken, tint, or fade the pixels under the brush." />
+            <InfoItem name="Spray (A)" desc="Scatter pixels of the primary color with controllable density, falloff, and opacity. Hold and drag to keep spraying." />
+            <InfoItem name="Fade" desc="Soft eraser — gradually removes opacity under the brush. Strength controls how much is erased per pass; Softness feathers the edges." />
+            <InfoItem name="Replace" desc="Replace every pixel matching the From color (within Tolerance, across all RGBA channels) with the To color, over the whole texture or current selection. Pick From/To in the sidebar." />
+            <InfoItem name="Stamp" desc="Paste a copied image repeatedly, with rotation and scaling." />
+            <InfoItem name="Recolor" desc="Adjust hue, saturation, brightness, and contrast, or invert/grayscale, with a live preview." />
+            <InfoItem name="Recent colors" desc="The sidebar keeps your last 10 colors — recorded when you pick, eyedrop, or paint a color, or set Replace From/To. Click a swatch to use it as the tool's color (From color when Replace is active), or right-click for the secondary color (To). Collapse the panel with the arrow. Colors are only added when you release the wheel, not while dragging." />
             </div>
             <div className="info-shortcuts">
               <h4>Shortcuts</h4>
@@ -1893,6 +1910,7 @@ export function Editor(): JSX.Element {
       </div>
 
       <aside className="side">
+        <RecentPalette />
         {collabOpen && (
           <div className="panel collab-panel">
             <h4 className="panel-title">Collaborate</h4>
@@ -1912,6 +1930,7 @@ export function Editor(): JSX.Element {
               const finalHex =
                 rgba.a === 255 ? hex : rgbaToHex({ ...rgba, a: rgba.a });
               useEditorUi.setState({ primaryColor: finalHex });
+              recordColor(finalHex);
             }}
           />
           {activeTool === 'gradient' && (
@@ -2015,6 +2034,7 @@ export function Editor(): JSX.Element {
                       const finalHex =
                         rgba.a === 255 ? hex : rgbaToHex({ ...rgba, a: rgba.a });
                       useEditorUi.setState({ secondaryColor: finalHex });
+                      recordColor(finalHex);
                     }}
                   />
                 </div>
@@ -2568,31 +2588,32 @@ function FallbackToolIcon({ id }: { id: ToolId }): JSX.Element {
     return <PixelIcon rows={rows} palette={palette} />;
   }
   if (id === 'spray') {
+    // Minecraft splash potion with droplets
     const rows = [
       '................',
-      '.......a........',
-      '......aaa..bb...',
-      '......a...bbbb..',
-      '.......a.bbbb...',
-      '........bbbb....',
-      '...WWWW.........',
-      '..WSSSWW........',
-      '..WS..SW........',
-      '..WS..SW........',
-      '..WSSSSW........',
-      '..WooooW........',
-      '..WooooW........',
-      '..WWWWWW........',
-      '................',
+      '.......cc.......',
+      '.......cc.......',
+      '......cGGc......',
+      '......GGGG......',
+      '.....gGGGGg..p..',
+      '....gGppppGg.p..',
+      '....GppppppG....',
+      '....GppppppG.p..',
+      '....GppppppG....',
+      '....GppppppG....',
+      '....gGppppGg....',
+      '.....gGGGGg.....',
+      '......GGGG......',
+      '.......GG.......',
       '................',
     ];
     const palette: Record<string, string> = {
       '.': 'transparent',
-      a: '#6cf0d6',
-      b: '#6cf0d6',
-      W: '#7d8590',
-      S: '#c9d1d9',
-      o: '#a01818',
+      c: '#7a5230',
+      g: '#dff1f7',
+      G: '#a9c9d6',
+      p: '#c64cd0',
+      P: '#8e2ea0',
     };
     return <PixelIcon rows={rows} palette={palette} />;
   }
@@ -2624,47 +2645,63 @@ function FallbackToolIcon({ id }: { id: ToolId }): JSX.Element {
     return <PixelIcon rows={rows} palette={palette} />;
   }
   if (id === 'fade') {
+    // Minecraft wet sponge block (soft eraser)
     const rows = [
-      'aaaaaaaaaaaaaaaa',
-      'aaaaaaaaaaaaaaa.',
-      'aaaaaaaaaaaaaa..',
-      'aaaaaaaaaaaaa...',
-      'aaaaaaaaaaaa....',
-      'aaaaaaaaaaa.....',
-      'aaaaaaaaaa......',
-      'aaaaaaaaa.......',
-      'aaaaaaaa........',
-      'aaaaaaa.........',
-      'aaaaaa..........',
-      'aaaaa...........',
-      'aaaa............',
-      'aaa.............',
-      'aa..............',
-      'a...............',
+      '................',
+      '..oooooooooooo..',
+      '..oSSSSSSSSSSo..',
+      '..oSSShSSSSSSo..',
+      '..oSSSSSSSSSSo..',
+      '..oSShhSSSSSSo..',
+      '..oSSSSSSSSSSo..',
+      '..oSSShSSSSSSo..',
+      '..oSSSSSSSSSSo..',
+      '..oSShhSSSSSSo..',
+      '..oSSSSSSSSSSo..',
+      '..oSSSSSSSSSSo..',
+      '..oooooooooooo..',
+      '................',
+      '................',
+      '................',
     ];
-    const palette: Record<string, string> = { '.': 'transparent', a: '#6cf0d6' };
+    const palette: Record<string, string> = {
+      '.': 'transparent',
+      o: '#5b4f25',
+      s: '#e7d98f',
+      S: '#c9b46a',
+      h: '#8a7a3c',
+    };
     return <PixelIcon rows={rows} palette={palette} />;
   }
   if (id === 'replace') {
+    // Two Minecraft blocks swapping color (From -> To)
     const rows = [
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
-      'aaaabbbb........',
+      '................',
+      '................',
+      '................',
+      '................',
+      'ooooooo..ooooooo',
+      'oAAAAAow.oBBBBBo',
+      'oAaaaAowwoBbbBo',
+      'oAAAAAow.oBBBBBo',
+      'oaaaaAo..oBbbBo',
+      'ooooooo..ooooooo',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
     ];
-    const palette: Record<string, string> = { '.': 'transparent', a: '#6cf0d6', b: '#c9d1d9' };
+    const palette: Record<string, string> = {
+      '.': 'transparent',
+      w: '#e8e8e8',
+      A: '#5fd0bf',
+      a: '#9fe7da',
+      B: '#ef9b3e',
+      b: '#f6c27e',
+      o: '#20242b',
+    };
     return <PixelIcon rows={rows} palette={palette} />;
   }
   // recolor

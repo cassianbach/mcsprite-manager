@@ -154,7 +154,13 @@ export function ColorPicker({ value, onChange, onCommit }: Props): JSX.Element {
     const [r, g, b] = hsvToRgb(hh, ss, vv);
     const hex = rgbaToHex({ r, g, b, a: aa });
     onChange(hex);
-    onCommit?.(hex);
+  }
+
+  // Commit only on pointer release so dragging the wheel doesn't spam onCommit
+  // (e.g. repeatedly recording into the Recent palette).
+  function commit(): void {
+    const [r, g, b] = hsvToRgb(hue, sat, val);
+    onCommit?.(rgbaToHex({ r, g, b, a: alpha }));
   }
 
   function handleWheel(e: React.MouseEvent<HTMLDivElement>): void {
@@ -226,6 +232,7 @@ export function ColorPicker({ value, onChange, onCommit }: Props): JSX.Element {
         onPointerMove={(e) => {
           if (e.buttons === 1) handleWheel(e);
         }}
+        onPointerUp={() => commit()}
       >
         <canvas ref={wheelRef} className="color-wheel" width={220} height={220} />
         <div
@@ -247,6 +254,7 @@ export function ColorPicker({ value, onChange, onCommit }: Props): JSX.Element {
         onPointerMove={(e) => {
           if (e.buttons === 1) handleStrip(e);
         }}
+        onPointerUp={() => commit()}
       >
         <canvas ref={stripRef} width={220} height={18} />
         <div
@@ -274,6 +282,7 @@ export function ColorPicker({ value, onChange, onCommit }: Props): JSX.Element {
         onPointerMove={(e) => {
           if (e.buttons === 1) handleBrightness(e);
         }}
+        onPointerUp={() => commit()}
       >
         <div
           className="color-strip-marker"
@@ -302,6 +311,7 @@ export function ColorPicker({ value, onChange, onCommit }: Props): JSX.Element {
         onPointerMove={(e) => {
           if (e.buttons === 1) handleAlpha(e);
         }}
+        onPointerUp={() => commit()}
       >
         <div
           className="color-strip-marker"

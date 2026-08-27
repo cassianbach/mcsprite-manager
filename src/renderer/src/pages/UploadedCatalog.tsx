@@ -106,6 +106,14 @@ export function UploadedCatalog(): JSX.Element {
   }
   useEffect(() => { if (scope === 'community') void refreshCommunity(); }, [scope, search, tagFilter]);
 
+  useEffect(() => {
+    if (scope === 'community' && handle) {
+      window.api.community.getAdmins().then((a) => setCommunityAdmins(a as string[])).catch(() => {});
+    } else {
+      setCommunityAdmins([]);
+    }
+  }, [scope, handle]);
+
   const [deviceInfo, setDeviceInfo] = useState<{ user_code: string; verification_uri: string } | null>(null);
 
   async function onLogin() {

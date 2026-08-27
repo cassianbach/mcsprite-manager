@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useEditorUi, setTool, cycleMirror, setSecondaryColor, setGradientMode } from '../store/editor';
+import { useEditorUi, setTool, cycleMirror, setSecondaryColor, setGradientMode, setBrushSize, setSprayDensity, setSprayFalloff, setSprayOpacity } from '../store/editor';
 import type { ToolId } from '../store/editor';
 import { useProject } from '../store/project';
 import { CanvasViewport, type CanvasViewportHandle } from '../components/CanvasViewport';
@@ -23,6 +23,7 @@ import {
   rescalePixels,
   shadePixels,
   smushPixels,
+  sprayPixels,
 } from '../lib/canvas';
 import type { RescaleMode } from '../lib/canvas';
 import { rgbaToHex, hexToRgba, rgbaToHex as rgbaToHexFull } from '../lib/color';
@@ -85,6 +86,9 @@ export function SpriteEditor(): JSX.Element {
   const primaryColor = useEditorUi((s) => s.primaryColor);
   const secondaryColor = useEditorUi((s) => s.secondaryColor);
   const gradientMode = useEditorUi((s) => s.gradientMode);
+  const sprayDensity = useEditorUi((s) => s.sprayDensity);
+  const sprayFalloff = useEditorUi((s) => s.sprayFalloff);
+  const sprayOpacity = useEditorUi((s) => s.sprayOpacity);
   const [activeColor, setActiveColor] = useState<'primary' | 'secondary'>('primary');
   const zoom = useEditorUi((s) => s.zoom);
   const mirror = useEditorUi((s) => s.mirror);
@@ -115,6 +119,8 @@ export function SpriteEditor(): JSX.Element {
   const zoomRef = useRef(zoom);
   const pointer = useRef<PointerState>({ drawing: false, last: null, selMode: null });
   const gradientPathRef = useRef<Array<{ x: number; y: number }>>([]);
+  const sprayTimerRef = useRef<number | null>(null);
+  const sprayPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [tick, forceTick] = useState(0);
 
   useEffect(() => {
@@ -135,6 +141,12 @@ export function SpriteEditor(): JSX.Element {
   useEffect(() => {
     zoomRef.current = zoom;
   }, [zoom]);
+
+  useEffect(() => {
+    return () => {
+      if (sprayTimerRef.current) clearInterval(sprayTimerRef.current);
+    };
+  }, []);
 
   // Lazy create a default sprite canvas
   useEffect(() => {
@@ -170,6 +182,10 @@ export function SpriteEditor(): JSX.Element {
       if (pointer.current.drawing) {
         pointer.current.drawing = false;
         pointer.current.last = null;
+        if (sprayTimerRef.current) {
+          clearInterval(sprayTimerRef.current);
+          sprayTimerRef.current = null;
+        }
         endStroke();
       }
       pointer.current.selMode = null;
@@ -202,6 +218,23 @@ export function SpriteEditor(): JSX.Element {
         variants.push(path.map((p) => ({ x: mirrorX(p.x, w), y: mirrorY(p.y, h) })));
       }
       return variants;
+    };
+
+    const sprayAt = (cx: number, cy: number): void => {
+      const t = useProject.getState().texture;
+      if (!t) return;
+      const pixels = new Uint8ClampedArray(t.current);
+      const tuple = hexToTuple(primaryColorRef.current);
+      const ui = useEditorUi.getState();
+      const density = (ui.sprayDensity ?? 30) / 100;
+      const falloff = (ui.sprayFalloff ?? 60) / 100;
+      const opacity = (ui.sprayOpacity ?? 100) / 100;
+      let combined: { x: number; y: number; w: number; h: number } | null = null;
+      for (const [px, py] of applyMirror(cx, cy)) {
+        const r = sprayPixels(pixels, t.width, t.height, px, py, brushSizeRef.current, density, tuple, falloff, opacity);
+        if (r) combined = unionRect(combined, r);
+      }
+      if (combined) useProject.getState().applyStrokeEdit(pixels, combined);
     };
 
     if (tool === 'pencil' || tool === 'eraser') {
@@ -258,6 +291,29 @@ export function SpriteEditor(): JSX.Element {
         pointer.current.last = e.pixel;
         if (combined) applyStrokeEdit(pixels, combined);
       } else if (e.type === 'up') {
+        pointer.current.drawing = false;
+        pointer.current.last = null;
+        endStroke();
+      }
+    } else if (tool === 'spray') {
+      if (e.type === 'down') {
+        pointer.current.drawing = true;
+        pointer.current.last = e.pixel;
+        sprayPosRef.current = e.pixel;
+        beginStroke();
+        sprayAt(e.pixel.x, e.pixel.y);
+        if (sprayTimerRef.current) clearInterval(sprayTimerRef.current);
+        sprayTimerRef.current = window.setInterval(() => {
+          sprayAt(sprayPosRef.current.x, sprayPosRef.current.y);
+        }, 45);
+      } else if (e.type === 'move' && pointer.current.drawing) {
+        sprayPosRef.current = e.pixel;
+        sprayAt(e.pixel.x, e.pixel.y);
+      } else if (e.type === 'up') {
+        if (sprayTimerRef.current) {
+          clearInterval(sprayTimerRef.current);
+          sprayTimerRef.current = null;
+        }
         pointer.current.drawing = false;
         pointer.current.last = null;
         endStroke();
@@ -563,7 +619,7 @@ export function SpriteEditor(): JSX.Element {
     <div className="editor-shell">
       <div className="toolbar">
         <div className="toolbar-group">
-          {(['pencil', 'eraser', 'fill', 'eyedropper', 'select', 'shade', 'recolor', 'stamp', 'gradient', 'smush'] as const).map(
+          {(['pencil', 'eraser', 'fill', 'eyedropper', 'select', 'shade', 'recolor', 'stamp', 'gradient', 'smush', 'spray'] as const).map(
             (t) => (
               <button
                 key={t}
@@ -776,6 +832,62 @@ export function SpriteEditor(): JSX.Element {
           <div className="panel">
             <h4 className="panel-title">Shade</h4>
             <ShadePanel />
+          </div>
+        )}
+
+        {activeTool === 'spray' && (
+          <div className="panel">
+            <h4 className="panel-title">Spray</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="brush-size-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', minWidth: 64 }}>Size</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={64}
+                  value={brushSize}
+                  onChange={(e) => setBrushSize(parseInt(e.target.value, 10) || 1)}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{brushSize}px</span>
+              </div>
+              <div className="brush-size-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', minWidth: 64 }}>Density</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={100}
+                  value={sprayDensity}
+                  onChange={(e) => setSprayDensity(parseInt(e.target.value, 10) || 1)}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{sprayDensity}%</span>
+              </div>
+              <div className="brush-size-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', minWidth: 64 }}>Softness</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={sprayFalloff}
+                  onChange={(e) => setSprayFalloff(parseInt(e.target.value, 10) || 0)}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{sprayFalloff}%</span>
+              </div>
+              <div className="brush-size-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', minWidth: 64 }}>Opacity</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={100}
+                  value={sprayOpacity}
+                  onChange={(e) => setSprayOpacity(parseInt(e.target.value, 10) || 1)}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{sprayOpacity}%</span>
+              </div>
+            </div>
           </div>
         )}
 

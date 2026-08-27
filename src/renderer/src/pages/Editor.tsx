@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useEditorUi, setTool, setBrushSize, setShowGrid, cycleMirror, setRecolor, setSecondaryColor, setGradientMode, setGradientAngle, setGradientThickness, setGradientUseAngle } from '../store/editor';
+import { useEditorUi, setTool, setBrushSize, setShowGrid, cycleMirror, setRecolor, setSecondaryColor, setGradientMode, setGradientAngle, setGradientThickness, setGradientUseAngle, setSprayDensity, setSprayFalloff, setSprayOpacity } from '../store/editor';
 import type { ToolId } from '../store/editor';
 import { useProject, canUndo, canRedo } from '../store/project';
 import { useClipboard } from '../store/clipboard';
@@ -40,6 +40,7 @@ import {
   recolorPixels,
   shadePixels,
   smushPixels,
+  sprayPixels,
   transformPixels,
   type RescaleMode,
   type TransformOp,
@@ -94,6 +95,7 @@ const TOOLS: { id: ToolId; label: string; shortcut: string }[] = [
   { id: 'shade', label: 'Shade', shortcut: 'S' },
   { id: 'stamp', label: 'Stamp', shortcut: '' },
   { id: 'recolor', label: 'Recolor', shortcut: '' },
+  { id: 'spray', label: 'Spray', shortcut: 'A' },
 ];
 
 type Handle = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
@@ -199,6 +201,9 @@ export function Editor(): JSX.Element {
   const gradientThickness = useEditorUi((s) => s.gradientThickness);
   const gradientUseAngle = useEditorUi((s) => s.gradientUseAngle);
   const mirror = useEditorUi((s) => s.mirror);
+  const sprayDensity = useEditorUi((s) => s.sprayDensity);
+  const sprayFalloff = useEditorUi((s) => s.sprayFalloff);
+  const sprayOpacity = useEditorUi((s) => s.sprayOpacity);
 
   const [textureList, setTextureList] = useState<string[]>([]);
   // ===== Collaboration (Phase 3.5) =====
@@ -228,6 +233,8 @@ export function Editor(): JSX.Element {
   const pointer = useRef<PointerState>({ drawing: false, last: null, selMode: null });
   const gradientPathRef = useRef<Array<{ x: number; y: number }>>([]);
   const gradientDotsRef = useRef<Array<{ x: number; y: number }>>([]);
+  const sprayTimerRef = useRef<number | null>(null);
+  const sprayPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [tick, forceTick] = useState(0);
 
   useEffect(() => {
@@ -242,6 +249,11 @@ export function Editor(): JSX.Element {
   useEffect(() => {
     zoomRef.current = zoom;
   }, [zoom]);
+  useEffect(() => {
+    return () => {
+      if (sprayTimerRef.current) clearInterval(sprayTimerRef.current);
+    };
+  }, []);
 
   // Load texture list for this project — and load the first texture (or create a demo if empty).
   const [listLoaded, setListLoaded] = useState(false);
@@ -652,6 +664,10 @@ export function Editor(): JSX.Element {
         if (pointer.current.drawing) {
           pointer.current.drawing = false;
           pointer.current.last = null;
+          if (sprayTimerRef.current) {
+            clearInterval(sprayTimerRef.current);
+            sprayTimerRef.current = null;
+          }
           endStroke();
         }
         pointer.current.selMode = null;
@@ -689,6 +705,23 @@ export function Editor(): JSX.Element {
           variants.push(path.map((p) => ({ x: mirrorX(p.x, w), y: mirrorY(p.y, h) })));
         }
         return variants;
+      };
+
+      const sprayAt = (cx: number, cy: number): void => {
+        const t = useProject.getState().texture;
+        if (!t) return;
+        const pixels = new Uint8ClampedArray(t.current);
+        const tuple = hexToTuple(color);
+        const ui = useEditorUi.getState();
+        const density = (ui.sprayDensity ?? 30) / 100;
+        const falloff = (ui.sprayFalloff ?? 60) / 100;
+        const opacity = (ui.sprayOpacity ?? 100) / 100;
+        let combined: { x: number; y: number; w: number; h: number } | null = null;
+        for (const [px, py] of applyMirror(cx, cy)) {
+          const r = sprayPixels(pixels, t.width, t.height, px, py, brushSizeRef.current, density, tuple, falloff, opacity);
+          if (r) combined = unionRect(combined, r);
+        }
+        if (combined) useProject.getState().applyStrokeEdit(pixels, combined);
       };
 
       if (tool === 'pencil' || tool === 'eraser') {
@@ -751,6 +784,29 @@ export function Editor(): JSX.Element {
           pointer.current.last = e.pixel;
           if (combined) applyStrokeEdit(pixels, combined);
         } else if (e.type === 'up') {
+          pointer.current.drawing = false;
+          pointer.current.last = null;
+          endStroke();
+        }
+      } else if (tool === 'spray') {
+        if (e.type === 'down') {
+          pointer.current.drawing = true;
+          pointer.current.last = e.pixel;
+          sprayPosRef.current = e.pixel;
+          beginStroke();
+          sprayAt(e.pixel.x, e.pixel.y);
+          if (sprayTimerRef.current) clearInterval(sprayTimerRef.current);
+          sprayTimerRef.current = window.setInterval(() => {
+            sprayAt(sprayPosRef.current.x, sprayPosRef.current.y);
+          }, 45);
+        } else if (e.type === 'move' && pointer.current.drawing) {
+          sprayPosRef.current = e.pixel;
+          sprayAt(e.pixel.x, e.pixel.y);
+        } else if (e.type === 'up') {
+          if (sprayTimerRef.current) {
+            clearInterval(sprayTimerRef.current);
+            sprayTimerRef.current = null;
+          }
           pointer.current.drawing = false;
           pointer.current.last = null;
           endStroke();
@@ -1983,6 +2039,62 @@ export function Editor(): JSX.Element {
           </div>
         )}
 
+        {activeTool === 'spray' && (
+          <div className="panel">
+            <h4 className="panel-title">Spray</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="brush-size-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', minWidth: 64 }}>Size</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={64}
+                  value={brushSize}
+                  onChange={(e) => setBrushSize(parseInt(e.target.value, 10) || 1)}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{brushSize}px</span>
+              </div>
+              <div className="brush-size-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', minWidth: 64 }}>Density</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={100}
+                  value={sprayDensity}
+                  onChange={(e) => setSprayDensity(parseInt(e.target.value, 10) || 1)}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{sprayDensity}%</span>
+              </div>
+              <div className="brush-size-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', minWidth: 64 }}>Softness</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={sprayFalloff}
+                  onChange={(e) => setSprayFalloff(parseInt(e.target.value, 10) || 0)}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{sprayFalloff}%</span>
+              </div>
+              <div className="brush-size-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', minWidth: 64 }}>Opacity</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={100}
+                  value={sprayOpacity}
+                  onChange={(e) => setSprayOpacity(parseInt(e.target.value, 10) || 1)}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{sprayOpacity}%</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTool === 'recolor' && (
           <div className="panel">
             <h4 className="panel-title">Recolor</h4>
@@ -2289,7 +2401,7 @@ function ToolIcon({ id }: { id: ToolId }): JSX.Element {
     );
   }
   // Inline pixel-art for tools without a bundled PNG
-  if (id === 'shade' || id === 'stamp' || id === 'recolor' || id === 'gradient' || id === 'smush') {
+  if (id === 'shade' || id === 'stamp' || id === 'recolor' || id === 'gradient' || id === 'smush' || id === 'spray') {
     return <FallbackToolIcon id={id} />;
   }
   return <span aria-hidden />;
@@ -2360,6 +2472,35 @@ function FallbackToolIcon({ id }: { id: ToolId }): JSX.Element {
       '................',
     ];
     const palette: Record<string, string> = { '.': 'transparent', W: '#7d8590', S: '#c9d1d9' };
+    return <PixelIcon rows={rows} palette={palette} />;
+  }
+  if (id === 'spray') {
+    const rows = [
+      '................',
+      '.......a........',
+      '......aaa..bb...',
+      '......a...bbbb..',
+      '.......a.bbbb...',
+      '........bbbb....',
+      '...WWWW.........',
+      '..WSSSWW........',
+      '..WS..SW........',
+      '..WS..SW........',
+      '..WSSSSW........',
+      '..WooooW........',
+      '..WooooW........',
+      '..WWWWWW........',
+      '................',
+      '................',
+    ];
+    const palette: Record<string, string> = {
+      '.': 'transparent',
+      a: '#6cf0d6',
+      b: '#6cf0d6',
+      W: '#7d8590',
+      S: '#c9d1d9',
+      o: '#a01818',
+    };
     return <PixelIcon rows={rows} palette={palette} />;
   }
   if (id === 'stamp') {

@@ -80,6 +80,77 @@ export function erasePixel(
   return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
 }
 
+/**
+ * Spray paint: scatter the brush color randomly within a circular radius around
+ * (cx,cy). `density` is the probability (0..1) that any given pixel inside the
+ * circle gets painted on this pass, so repeated passes build up coverage.
+ *
+ * `falloff` (0..1) controls edge softness: at the circle edge the per-pixel
+ * alpha is reduced by `falloff` (so 1 = only the very center is opaque, the rim
+ * is fully transparent). `opacity` (0..1) scales the overall alpha. Painted
+ * pixels are alpha-blended over whatever is already there, so soft edges and
+ * overlapping passes combine naturally. Returns the dirty rect or null.
+ */
+export function sprayPixels(
+  pixels: Uint8ClampedArray,
+  w: number,
+  h: number,
+  cx: number,
+  cy: number,
+  brushSize: number,
+  density: number,
+  color: [number, number, number, number],
+  falloff = 0,
+  opacity = 1,
+): Rect | null {
+  const radius = Math.max(1, Math.floor(brushSize / 2));
+  const r2 = radius * radius;
+  const d = Math.max(0, Math.min(1, density));
+  const fall = Math.max(0, Math.min(1, falloff));
+  const op = Math.max(0, Math.min(1, opacity));
+  const sr = color[0] / 255;
+  const sg = color[1] / 255;
+  const sb = color[2] / 255;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let changed = false;
+  for (let y = cy - radius; y <= cy + radius; y++) {
+    if (y < 0 || y >= h) continue;
+    for (let x = cx - radius; x <= cx + radius; x++) {
+      if (x < 0 || x >= w) continue;
+      const dx = x - cx;
+      const dy = y - cy;
+      const dist2 = dx * dx + dy * dy;
+      if (dist2 > r2) continue;
+      if (Math.random() >= d) continue;
+      // Distance-based alpha: center = full, edge = reduced by `fall`.
+      const t = radius === 0 ? 0 : Math.sqrt(dist2) / radius;
+      const a = op * (1 - fall * t);
+      if (a <= 0.004) continue; // ~ <1/255, invisible
+      const i = (y * w + x) * 4;
+      const dr = pixels[i] / 255;
+      const dg = pixels[i + 1] / 255;
+      const db = pixels[i + 2] / 255;
+      const da = pixels[i + 3] / 255;
+      const outA = a + da * (1 - a);
+      if (outA <= 0.004) continue;
+      pixels[i] = Math.round(((sr * a + dr * da * (1 - a)) / outA) * 255);
+      pixels[i + 1] = Math.round(((sg * a + dg * da * (1 - a)) / outA) * 255);
+      pixels[i + 2] = Math.round(((sb * a + db * da * (1 - a)) / outA) * 255);
+      pixels[i + 3] = Math.round(outA * 255);
+      changed = true;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (!changed) return null;
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
 /** Bresenham line. Returns array of pixel coords. */
 export function bresenhamLine(
   x0: number,

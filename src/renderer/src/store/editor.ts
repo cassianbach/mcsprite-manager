@@ -12,7 +12,8 @@ export type ToolId =
   | 'stamp'
   | 'recolor'
   | 'gradient'
-  | 'smush';
+  | 'smush'
+  | 'spray';
 
 export type MirrorMode = 'none' | 'horizontal' | 'vertical' | 'quad';
 
@@ -33,6 +34,11 @@ export interface EditorUiState {
   // Shade tool
   shadeMode: 'lighten' | 'darken' | 'tint' | 'fade';
   shadeStrength: number; // 1..100
+
+  // Spray tool
+  sprayDensity: number; // 1..100 (fraction of the brush area painted per pass)
+  sprayFalloff: number; // 1..100 (edge softness; higher = more see-through toward the rim)
+  sprayOpacity: number; // 1..100 (overall alpha of the spray)
 
   // Recolor (preview/apply)
   recolor: {
@@ -61,6 +67,9 @@ export const useEditorUi = create<EditorUiState>()(
     gradientThickness: 5,
     shadeMode: 'lighten',
     shadeStrength: 25,
+    sprayDensity: 30,
+    sprayFalloff: 60,
+    sprayOpacity: 100,
     recolor: {
       hue: 0,
       saturation: 0,
@@ -158,6 +167,21 @@ export const setShadeMode = (mode: 'lighten' | 'darken' | 'tint' | 'fade') =>
 export const setShadeStrength = (n: number) =>
   useEditorUi.setState((s) => {
     s.shadeStrength = Math.max(1, Math.min(100, Math.round(n)));
+  });
+
+export const setSprayDensity = (n: number) =>
+  useEditorUi.setState((s) => {
+    s.sprayDensity = Math.max(1, Math.min(100, Math.round(n)));
+  });
+
+export const setSprayFalloff = (n: number) =>
+  useEditorUi.setState((s) => {
+    s.sprayFalloff = Math.max(0, Math.min(100, Math.round(n)));
+  });
+
+export const setSprayOpacity = (n: number) =>
+  useEditorUi.setState((s) => {
+    s.sprayOpacity = Math.max(1, Math.min(100, Math.round(n)));
   });
 
 export const setRecolor = (next: Partial<EditorUiState['recolor']>) =>

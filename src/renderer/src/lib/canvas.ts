@@ -81,6 +81,55 @@ export function erasePixel(
 }
 
 /**
+ * Fade (soft eraser): progressively reduce a pixel's alpha toward transparent.
+ * `strength` (0..255) is the alpha removed at the brush center per pass; repeated
+ * drags keep erasing more. `softness` (0..1) feathers the edges so the rim removes
+ * less than the center, giving a soft transition. RGB is left unchanged.
+ * Returns the dirty rect (or null if nothing changed).
+ */
+export function fadePixels(
+  pixels: Uint8ClampedArray,
+  w: number,
+  h: number,
+  cx: number,
+  cy: number,
+  brushSize: number,
+  strength: number,
+  softness = 0,
+): Rect | null {
+  const r = brushSize === 1 ? 0 : Math.floor(brushSize / 2);
+  const x0 = Math.max(0, cx - r);
+  const y0 = Math.max(0, cy - r);
+  const x1 = Math.min(w - 1, cx - r + brushSize - 1);
+  const y1 = Math.min(h - 1, cy - r + brushSize - 1);
+  if (x1 < x0 || y1 < y0) return null;
+  const radius = Math.max(1, Math.floor(brushSize / 2));
+  const soft = Math.max(0, Math.min(1, softness));
+  const s = Math.max(0, Math.min(255, strength));
+  let changed = false;
+  for (let py = y0; py <= y1; py++) {
+    for (let px = x0; px <= x1; px++) {
+      const i = (py * w + px) * 4;
+      const a = pixels[i + 3];
+      if (a === 0) continue;
+      const dx = px - cx;
+      const dy = py - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const t = radius === 0 ? 0 : dist / radius;
+      const factor = 1 - soft * t; // 1 at center, (1 - soft) at the rim
+      const amount = s * factor;
+      if (amount <= 0) continue;
+      const na = Math.max(0, a - amount);
+      if (na === a) continue;
+      pixels[i + 3] = na;
+      changed = true;
+    }
+  }
+  if (!changed) return null;
+  return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+/**
  * Spray paint: scatter the brush color randomly within a circular radius around
  * (cx,cy). `density` is the probability (0..1) that any given pixel inside the
  * circle gets painted on this pass, so repeated passes build up coverage.

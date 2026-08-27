@@ -21,7 +21,8 @@
       { "target": "portable", "arch": ["x64"] }
     ],
     "icon": "build/icon.ico",
-    "signAndEditExecutable": false
+    "signAndEditExecutable": false,
+    "sign": "scripts/noop-sign.js"
   },
   "nsis": {
     "oneClick": false,

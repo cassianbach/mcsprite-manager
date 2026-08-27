@@ -13,7 +13,9 @@ export type ToolId =
   | 'recolor'
   | 'gradient'
   | 'smush'
-  | 'spray';
+  | 'spray'
+  | 'fade'
+  | 'replace';
 
 export type MirrorMode = 'none' | 'horizontal' | 'vertical' | 'quad';
 
@@ -39,6 +41,15 @@ export interface EditorUiState {
   sprayDensity: number; // 1..100 (fraction of the brush area painted per pass)
   sprayFalloff: number; // 1..100 (edge softness; higher = more see-through toward the rim)
   sprayOpacity: number; // 1..100 (overall alpha of the spray)
+
+  // Fade tool (soft eraser: reduces alpha progressively)
+  fadeStrength: number; // 1..100 (alpha removed per pass, 0..255)
+  fadeSoftness: number; // 0..100 (edge feather; higher = softer rim)
+
+  // Replace tool (one color -> another, with tolerance)
+  replaceFrom: string; // hex (with alpha)
+  replaceTo: string; // hex (with alpha)
+  replaceTolerance: number; // 0..255
 
   // Recolor (preview/apply)
   recolor: {
@@ -70,6 +81,11 @@ export const useEditorUi = create<EditorUiState>()(
     sprayDensity: 30,
     sprayFalloff: 60,
     sprayOpacity: 100,
+    fadeStrength: 35,
+    fadeSoftness: 50,
+    replaceFrom: '#ffffff',
+    replaceTo: '#000000',
+    replaceTolerance: 32,
     recolor: {
       hue: 0,
       saturation: 0,
@@ -182,6 +198,31 @@ export const setSprayFalloff = (n: number) =>
 export const setSprayOpacity = (n: number) =>
   useEditorUi.setState((s) => {
     s.sprayOpacity = Math.max(1, Math.min(100, Math.round(n)));
+  });
+
+export const setFadeStrength = (n: number) =>
+  useEditorUi.setState((s) => {
+    s.fadeStrength = Math.max(1, Math.min(100, Math.round(n)));
+  });
+
+export const setFadeSoftness = (n: number) =>
+  useEditorUi.setState((s) => {
+    s.fadeSoftness = Math.max(0, Math.min(100, Math.round(n)));
+  });
+
+export const setReplaceFrom = (hex: string) =>
+  useEditorUi.setState((s) => {
+    s.replaceFrom = hex;
+  });
+
+export const setReplaceTo = (hex: string) =>
+  useEditorUi.setState((s) => {
+    s.replaceTo = hex;
+  });
+
+export const setReplaceTolerance = (n: number) =>
+  useEditorUi.setState((s) => {
+    s.replaceTolerance = Math.max(0, Math.min(255, Math.round(n)));
   });
 
 export const setRecolor = (next: Partial<EditorUiState['recolor']>) =>

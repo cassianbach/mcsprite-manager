@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useEditorUi, setTool, setBrushSize, setShowGrid, cycleMirror, setRecolor, setSecondaryColor, setGradientMode, setGradientAngle, setGradientThickness, setGradientUseAngle, setSprayDensity, setSprayFalloff, setSprayOpacity } from '../store/editor';
+import { useEditorUi, setTool, setBrushSize, setShowGrid, cycleMirror, setRecolor, setSecondaryColor, setGradientMode, setGradientAngle, setGradientThickness, setGradientUseAngle, setSprayDensity, setSprayFalloff, setSprayOpacity, setFadeStrength, setFadeSoftness, setReplaceFrom, setReplaceTo, setReplaceTolerance } from '../store/editor';
 import type { ToolId } from '../store/editor';
 import { useProject, canUndo, canRedo } from '../store/project';
 import { useClipboard } from '../store/clipboard';
@@ -12,6 +12,8 @@ import { ResizeDialog } from '../components/ResizeDialog';
 import { SpriteSheetDialog } from '../components/SpriteSheetDialog';
 import { ShadePanel } from '../components/ShadePanel';
 import { RecolorPanel } from '../components/RecolorPanel';
+import { FadePanel } from '../components/FadePanel';
+import { ReplacePanel } from '../components/ReplacePanel';
 import { FramesPanel } from '../components/FramesPanel';
 import { ActionGlyph, PixelIcon } from '../components/ActionGlyph';
 import { StampOverlay, type StampState } from '../components/StampOverlay';
@@ -41,6 +43,8 @@ import {
   shadePixels,
   smushPixels,
   sprayPixels,
+  fadePixels,
+  replaceColor,
   transformPixels,
   type RescaleMode,
   type TransformOp,
@@ -96,6 +100,8 @@ const TOOLS: { id: ToolId; label: string; shortcut: string }[] = [
   { id: 'stamp', label: 'Stamp', shortcut: '' },
   { id: 'recolor', label: 'Recolor', shortcut: '' },
   { id: 'spray', label: 'Spray', shortcut: 'A' },
+  { id: 'fade', label: 'Fade', shortcut: '' },
+  { id: 'replace', label: 'Replace', shortcut: '' },
 ];
 
 type Handle = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
@@ -169,6 +175,19 @@ export function Editor(): JSX.Element {
   const beginStroke = useProject((s) => s.beginStroke);
   const applyStrokeEdit = useProject((s) => s.applyStrokeEdit);
   const endStroke = useProject((s) => s.endStroke);
+
+  function applyReplace(): void {
+    if (!texture) return;
+    const ui = useEditorUi.getState();
+    const from = hexToTuple(ui.replaceFrom);
+    const to = hexToTuple(ui.replaceTo);
+    const selRect = texture.selection ?? undefined;
+    const pixels = new Uint8ClampedArray(texture.current);
+    const res = replaceColor(pixels, texture.width, texture.height, from, to, ui.replaceTolerance, selRect);
+    if (res.changed > 0) {
+      applyEdit(res.pixels, { x: 0, y: 0, w: texture.width, h: texture.height });
+    }
+  }
   const undo = useProject((s) => s.undo);
   const redo = useProject((s) => s.redo);
   const reset = useProject((s) => s.reset);
@@ -787,6 +806,66 @@ export function Editor(): JSX.Element {
           pointer.current.drawing = false;
           pointer.current.last = null;
           endStroke();
+        }
+      } else if (tool === 'fade') {
+        if (e.type === 'down') {
+          pointer.current.drawing = true;
+          pointer.current.last = e.pixel;
+          beginStroke();
+          const pixels = new Uint8ClampedArray(texture.current);
+          const ui = useEditorUi.getState();
+          const strength = Math.max(1, Math.round(ui.fadeStrength * 2.55));
+          const softness = ui.fadeSoftness / 100;
+          let rect: { x: number; y: number; w: number; h: number } | null = null;
+          for (const [px, py] of applyMirror(e.pixel.x, e.pixel.y)) {
+            const r = fadePixels(pixels, texture.width, texture.height, px, py, brushSizeRef.current, strength, softness);
+            if (r) rect = unionRect(rect, r);
+          }
+          if (rect) applyStrokeEdit(pixels, rect);
+        } else if (e.type === 'move' && pointer.current.drawing) {
+          const last = pointer.current.last ?? e.pixel;
+          const basePts: Array<[number, number]> = e.shiftKey
+            ? [[last.x, last.y], [e.pixel.x, e.pixel.y]]
+            : bresenhamLine(last.x, last.y, e.pixel.x, e.pixel.y);
+          const segments: Array<Array<[number, number]>> = [basePts];
+          if (mirrorMode === 'horizontal' || mirrorMode === 'quad') {
+            const a = mirrorX(last.x, w);
+            const b = mirrorX(e.pixel.x, w);
+            segments.push(e.shiftKey ? [[a, last.y], [b, e.pixel.y]] : bresenhamLine(a, last.y, b, e.pixel.y));
+          }
+          if (mirrorMode === 'vertical' || mirrorMode === 'quad') {
+            const a = mirrorY(last.y, h);
+            const b = mirrorY(e.pixel.y, h);
+            segments.push(e.shiftKey ? [[last.x, a], [e.pixel.x, b]] : bresenhamLine(last.x, a, e.pixel.x, b));
+          }
+          if (mirrorMode === 'quad') {
+            const a = mirrorX(last.x, w);
+            const b = mirrorY(last.y, h);
+            const c = mirrorX(e.pixel.x, w);
+            const d = mirrorY(e.pixel.y, h);
+            segments.push(e.shiftKey ? [[a, b], [c, d]] : bresenhamLine(a, b, c, d));
+          }
+          const pixels = new Uint8ClampedArray(texture.current);
+          const ui = useEditorUi.getState();
+          const strength = Math.max(1, Math.round(ui.fadeStrength * 2.55));
+          const softness = ui.fadeSoftness / 100;
+          let combined: { x: number; y: number; w: number; h: number } | null = null;
+          for (const seg of segments) {
+            for (const point of seg) {
+              const r = fadePixels(pixels, texture.width, texture.height, point[0], point[1], brushSizeRef.current, strength, softness);
+              if (r) combined = unionRect(combined, r);
+            }
+          }
+          pointer.current.last = e.pixel;
+          if (combined) applyStrokeEdit(pixels, combined);
+        } else if (e.type === 'up') {
+          pointer.current.drawing = false;
+          pointer.current.last = null;
+          endStroke();
+        }
+      } else if (tool === 'replace') {
+        if (e.type === 'down') {
+          applyReplace();
         }
       } else if (tool === 'spray') {
         if (e.type === 'down') {
@@ -2095,6 +2174,20 @@ export function Editor(): JSX.Element {
           </div>
         )}
 
+        {activeTool === 'fade' && (
+          <div className="panel">
+            <h4 className="panel-title">Fade (soft eraser)</h4>
+            <FadePanel />
+          </div>
+        )}
+
+        {activeTool === 'replace' && (
+          <div className="panel">
+            <h4 className="panel-title">Replace color</h4>
+            <ReplacePanel onApply={applyReplace} />
+          </div>
+        )}
+
         {activeTool === 'recolor' && (
           <div className="panel">
             <h4 className="panel-title">Recolor</h4>
@@ -2401,7 +2494,7 @@ function ToolIcon({ id }: { id: ToolId }): JSX.Element {
     );
   }
   // Inline pixel-art for tools without a bundled PNG
-  if (id === 'shade' || id === 'stamp' || id === 'recolor' || id === 'gradient' || id === 'smush' || id === 'spray') {
+  if (id === 'shade' || id === 'stamp' || id === 'recolor' || id === 'gradient' || id === 'smush' || id === 'spray' || id === 'fade' || id === 'replace') {
     return <FallbackToolIcon id={id} />;
   }
   return <span aria-hidden />;
@@ -2528,6 +2621,50 @@ function FallbackToolIcon({ id }: { id: ToolId }): JSX.Element {
       S: '#d8b079',
       o: '#a01818',
     };
+    return <PixelIcon rows={rows} palette={palette} />;
+  }
+  if (id === 'fade') {
+    const rows = [
+      'aaaaaaaaaaaaaaaa',
+      'aaaaaaaaaaaaaaa.',
+      'aaaaaaaaaaaaaa..',
+      'aaaaaaaaaaaaa...',
+      'aaaaaaaaaaaa....',
+      'aaaaaaaaaaa.....',
+      'aaaaaaaaaa......',
+      'aaaaaaaaa.......',
+      'aaaaaaaa........',
+      'aaaaaaa.........',
+      'aaaaaa..........',
+      'aaaaa...........',
+      'aaaa............',
+      'aaa.............',
+      'aa..............',
+      'a...............',
+    ];
+    const palette: Record<string, string> = { '.': 'transparent', a: '#6cf0d6' };
+    return <PixelIcon rows={rows} palette={palette} />;
+  }
+  if (id === 'replace') {
+    const rows = [
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+      'aaaabbbb........',
+    ];
+    const palette: Record<string, string> = { '.': 'transparent', a: '#6cf0d6', b: '#c9d1d9' };
     return <PixelIcon rows={rows} palette={palette} />;
   }
   // recolor

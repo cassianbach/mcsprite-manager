@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useEditorUi, setTool, cycleMirror, setSecondaryColor, setGradientMode, setBrushSize, setSprayDensity, setSprayFalloff, setSprayOpacity } from '../store/editor';
+import { useEditorUi, setTool, cycleMirror, setSecondaryColor, setGradientMode, setBrushSize, setSprayDensity, setSprayFalloff, setSprayOpacity, setFadeStrength, setFadeSoftness, setReplaceFrom, setReplaceTo, setReplaceTolerance } from '../store/editor';
 import type { ToolId } from '../store/editor';
 import { useProject } from '../store/project';
 import { CanvasViewport, type CanvasViewportHandle } from '../components/CanvasViewport';
@@ -9,6 +9,7 @@ import {
   clearRect,
   copyRect,
   erasePixel,
+  fadePixels,
   floodFill,
   getPixel,
   gradientAlongPath,
@@ -20,11 +21,14 @@ import {
   paintPixel,
   pasteRect,
   recolorPixels,
+  replaceColor,
   rescalePixels,
   shadePixels,
   smushPixels,
   sprayPixels,
 } from '../lib/canvas';
+import { FadePanel } from '../components/FadePanel';
+import { ReplacePanel } from '../components/ReplacePanel';
 import type { RescaleMode } from '../lib/canvas';
 import { rgbaToHex, hexToRgba, rgbaToHex as rgbaToHexFull } from '../lib/color';
 import { Button } from '../components/Button';
@@ -294,6 +298,66 @@ export function SpriteEditor(): JSX.Element {
         pointer.current.drawing = false;
         pointer.current.last = null;
         endStroke();
+      }
+    } else if (tool === 'fade') {
+      if (e.type === 'down') {
+        pointer.current.drawing = true;
+        pointer.current.last = e.pixel;
+        beginStroke();
+        const pixels = new Uint8ClampedArray(texture.current);
+        const ui = useEditorUi.getState();
+        const strength = Math.max(1, Math.round(ui.fadeStrength * 2.55));
+        const softness = ui.fadeSoftness / 100;
+        let rect: { x: number; y: number; w: number; h: number } | null = null;
+        for (const [px, py] of applyMirror(e.pixel.x, e.pixel.y)) {
+          const r = fadePixels(pixels, texture.width, texture.height, px, py, brushSizeRef.current, strength, softness);
+          if (r) rect = unionRect(rect, r);
+        }
+        if (rect) applyStrokeEdit(pixels, rect);
+      } else if (e.type === 'move' && pointer.current.drawing) {
+        const last = pointer.current.last ?? e.pixel;
+        const basePts: Array<[number, number]> = e.shiftKey
+          ? [[last.x, last.y], [e.pixel.x, e.pixel.y]]
+          : bresenhamLine(last.x, last.y, e.pixel.x, e.pixel.y);
+        const segments: Array<Array<[number, number]>> = [basePts];
+        if (mirrorMode === 'horizontal' || mirrorMode === 'quad') {
+          const a = mirrorX(last.x, w);
+          const b = mirrorX(e.pixel.x, w);
+          segments.push(e.shiftKey ? [[a, last.y], [b, e.pixel.y]] : bresenhamLine(a, last.y, b, e.pixel.y));
+        }
+        if (mirrorMode === 'vertical' || mirrorMode === 'quad') {
+          const a = mirrorY(last.y, h);
+          const b = mirrorY(e.pixel.y, h);
+          segments.push(e.shiftKey ? [[last.x, a], [e.pixel.x, b]] : bresenhamLine(last.x, a, e.pixel.x, b));
+        }
+        if (mirrorMode === 'quad') {
+          const a = mirrorX(last.x, w);
+          const b = mirrorY(last.y, h);
+          const c = mirrorX(e.pixel.x, w);
+          const d = mirrorY(e.pixel.y, h);
+          segments.push(e.shiftKey ? [[a, b], [c, d]] : bresenhamLine(a, b, c, d));
+        }
+        const pixels = new Uint8ClampedArray(texture.current);
+        const ui = useEditorUi.getState();
+        const strength = Math.max(1, Math.round(ui.fadeStrength * 2.55));
+        const softness = ui.fadeSoftness / 100;
+        let combined: { x: number; y: number; w: number; h: number } | null = null;
+        for (const seg of segments) {
+          for (const point of seg) {
+            const r = fadePixels(pixels, texture.width, texture.height, point[0], point[1], brushSizeRef.current, strength, softness);
+            if (r) combined = unionRect(combined, r);
+          }
+        }
+        pointer.current.last = e.pixel;
+        if (combined) applyStrokeEdit(pixels, combined);
+      } else if (e.type === 'up') {
+        pointer.current.drawing = false;
+        pointer.current.last = null;
+        endStroke();
+      }
+    } else if (tool === 'replace') {
+      if (e.type === 'down') {
+        applyReplace();
       }
     } else if (tool === 'spray') {
       if (e.type === 'down') {
@@ -615,11 +679,24 @@ export function SpriteEditor(): JSX.Element {
     return out;
   }
 
+  function applyReplace(): void {
+    if (!texture) return;
+    const ui = useEditorUi.getState();
+    const from = hexToTuple(ui.replaceFrom);
+    const to = hexToTuple(ui.replaceTo);
+    const selRect = texture.selection ?? undefined;
+    const pixels = new Uint8ClampedArray(texture.current);
+    const res = replaceColor(pixels, texture.width, texture.height, from, to, ui.replaceTolerance, selRect);
+    if (res.changed > 0) {
+      applyEdit(res.pixels, { x: 0, y: 0, w: texture.width, h: texture.height });
+    }
+  }
+
   return (
     <div className="editor-shell">
       <div className="toolbar">
         <div className="toolbar-group">
-          {(['pencil', 'eraser', 'fill', 'eyedropper', 'select', 'shade', 'recolor', 'stamp', 'gradient', 'smush', 'spray'] as const).map(
+          {(['pencil', 'eraser', 'fade', 'fill', 'eyedropper', 'select', 'shade', 'recolor', 'replace', 'stamp', 'gradient', 'smush', 'spray'] as const).map(
             (t) => (
               <button
                 key={t}
@@ -888,6 +965,20 @@ export function SpriteEditor(): JSX.Element {
                 <span style={{ fontSize: 11, color: 'var(--fg-3)', minWidth: 34, textAlign: 'right' }}>{sprayOpacity}%</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTool === 'fade' && (
+          <div className="panel">
+            <h4 className="panel-title">Fade (soft eraser)</h4>
+            <FadePanel />
+          </div>
+        )}
+
+        {activeTool === 'replace' && texture && (
+          <div className="panel">
+            <h4 className="panel-title">Replace color</h4>
+            <ReplacePanel onApply={applyReplace} />
           </div>
         )}
 

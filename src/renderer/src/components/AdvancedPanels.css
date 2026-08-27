@@ -90,3 +90,16 @@
   image-rendering: pixelated;
   margin-left: auto;
 }
+
+.replace-colors {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: var(--space-2);
+}
+
+.replace-color {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

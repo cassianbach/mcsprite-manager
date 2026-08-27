@@ -1,6 +1,6 @@
 {
   "name": "mcsprite-manager",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "description": "MCsprite Manager — Minecraft texture & sprite editor with community catalogue, version switcher, and animation tools",
   "main": "out/main/index.js",
   "author": "You",

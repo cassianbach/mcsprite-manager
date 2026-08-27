@@ -97,6 +97,57 @@ export async function communityGetModeration(): Promise<unknown[]> {
   return (await r.json()) as unknown[];
 }
 
+export async function communityAddToProject(projectId: string, id: string): Promise<{ ok: boolean; newId?: string }> {
+  const res = await fetch(`${BASE_URL}/api/catalog/texture/${id}.png`);
+  if (!res.ok) return { ok: false };
+  const buf = Buffer.from(await res.arrayBuffer());
+  const { PNG } = await import('pngjs');
+  let png: InstanceType<typeof PNG>;
+  try { png = PNG.sync.read(buf); } catch { return { ok: false }; }
+  // fetch meta for name/path
+  let name = id;
+  let path = id;
+  try {
+    const list = await communityList();
+    const t = list.textures.find((x) => x.id === id);
+    if (t) { name = t.name; path = t.path; }
+  } catch {}
+  const { writeTextureBundle, idFromPath } = await import('./projectStore');
+  const { randomUUID } = await import('node:crypto');
+  const nid = `${idFromPath(path)}_${randomUUID().slice(0, 6)}`;
+  await writeTextureBundle(projectId, nid, {
+    width: png.width,
+    height: png.height,
+    frameCount: 1,
+    pngBuffer: buf,
+    source: 'user',
+    path,
+    name,
+    animation: undefined,
+  });
+  return { ok: true, newId: nid };
+}
+
+export async function communityAddPackToProject(projectId: string, id: string): Promise<{ ok: boolean; imported?: number }> {
+  const res = await fetch(`${BASE_URL}/api/catalog/pack/${id}.zip`);
+  if (!res.ok) return { ok: false };
+  const buf = Buffer.from(await res.arrayBuffer());
+  const { join } = await import('node:path');
+  const { app: app2 } = await import('electron');
+  const { randomUUID } = await import('node:crypto');
+  const tmp = join(app2.getPath('temp'), `community-pack-${randomUUID()}.zip`);
+  await fs.writeFile(tmp, buf);
+  try {
+    const { readImportZip, applyImport } = await import('./projectStore');
+    const session = await readImportZip(projectId, tmp);
+    const selections = session.previews.map((p) => ({ path: p.path, action: 'import' as const }));
+    const result = await applyImport(projectId, session, selections);
+    return { ok: true, imported: result.imported };
+  } finally {
+    try { await fs.unlink(tmp); } catch {}
+  }
+}
+
 export async function communityUpdateTextureTags(id: string, tags: string[]): Promise<unknown> {
   const headers = { ...(await authHeaders()), 'Content-Type': 'application/json' };
   const r = await fetch(`${BASE_URL}/api/catalog/texture/${id}`, { method: 'PATCH', headers, body: JSON.stringify({ tags }) });

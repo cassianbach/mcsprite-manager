@@ -208,6 +208,8 @@ const api = {
     getModeration: (): Promise<unknown[]> => ipcRenderer.invoke(IPC.community.getModeration),
     updateTextureTags: (id: string, tags: string[]): Promise<unknown> => ipcRenderer.invoke(IPC.community.updateTextureTags, id, tags),
     updatePackTags: (id: string, tags: string[]): Promise<unknown> => ipcRenderer.invoke(IPC.community.updatePackTags, id, tags),
+    addToProject: (projectId: string, id: string): Promise<{ ok: boolean; newId?: string }> => ipcRenderer.invoke(IPC.community.addToProject, projectId, id),
+    addPackToProject: (projectId: string, id: string): Promise<{ ok: boolean; imported?: number }> => ipcRenderer.invoke(IPC.community.addPackToProject, projectId, id),
   },
 };
 

@@ -169,8 +169,21 @@ export function UploadedCatalog(): JSX.Element {
   }
   async function onAddToProject(texId: string) {
     if (!addTarget) { setMsg('Pick a project first.'); return; }
-    const r = await window.api.library.addToProject(addTarget, texId) as { ok: boolean };
-    if (r.ok) setMsg('Added to project.'); else setMsg('Failed to add.');
+    try {
+      const r = scope === 'community'
+        ? await window.api.community.addToProject(addTarget, texId) as { ok: boolean }
+        : await window.api.library.addToProject(addTarget, texId) as { ok: boolean };
+      if (r.ok) setMsg('Added to project.'); else setMsg('Failed to add.');
+    } catch (e) { setMsg((e as Error).message); }
+  }
+  async function onAddPackToProject(packId: string) {
+    if (!addTarget) { setMsg('Pick a project first.'); return; }
+    try {
+      const r = scope === 'community'
+        ? await window.api.community.addPackToProject(addTarget, packId) as { ok: boolean; imported?: number }
+        : { ok: false };
+      if (r.ok) setMsg(`Added pack (${r.imported ?? 0} textures).`); else setMsg('Failed to add pack.');
+    } catch (e) { setMsg((e as Error).message); }
   }
   async function doAddAdmin() {
     if (!newAdmin.trim()) return;
@@ -313,6 +326,12 @@ export function UploadedCatalog(): JSX.Element {
                   <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{p.textureCount} textures · {(p.sizeBytes/1024).toFixed(0)} KB · by {p.uploader}</div>
                 </div>
                 {(isAdmin || p.uploader === handle) && <button className="btn btn-ghost" onClick={() => onDeletePack(p.id)} style={{ color: 'var(--danger)' }}>Delete</button>}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                <select value={addTarget} onChange={(e) => setAddTarget(e.target.value)} style={{ flex: 1, fontSize: 11, minWidth: 0 }}>
+                  {projects.map((pr) => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
+                </select>
+                <button className="btn btn-ghost" onClick={() => onAddPackToProject(p.id)} style={{ fontSize: 11, padding: '4px 8px' }}>Add to project</button>
               </div>
               <TagEditor tags={p.tags ?? []} onChange={(nt) => onTagPack(p.id, nt)} canEdit={isAdmin || p.uploader === handle} />
             </div>

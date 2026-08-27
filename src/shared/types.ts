@@ -344,5 +344,7 @@ export const IPC = {
     getModeration: 'community:getModeration',
     updateTextureTags: 'community:updateTextureTags',
     updatePackTags: 'community:updatePackTags',
+    addToProject: 'community:addToProject',
+    addPackToProject: 'community:addPackToProject',
   },
 } as const;

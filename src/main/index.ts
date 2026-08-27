@@ -413,6 +413,8 @@ function registerIpc(): void {
   ipcMain.handle(IPC.community.getModeration, () => community.communityGetModeration());
   ipcMain.handle(IPC.community.updateTextureTags, (_e, id: string, tags: string[]) => community.communityUpdateTextureTags(id, tags));
   ipcMain.handle(IPC.community.updatePackTags, (_e, id: string, tags: string[]) => community.communityUpdatePackTags(id, tags));
+  ipcMain.handle(IPC.community.addToProject, (_e, projectId: string, id: string) => community.communityAddToProject(projectId, id));
+  ipcMain.handle(IPC.community.addPackToProject, (_e, projectId: string, id: string) => community.communityAddPackToProject(projectId, id));
 }
 
 app.whenReady().then(() => {

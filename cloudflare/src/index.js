@@ -48,6 +48,55 @@ function base64ToBytes(b64) {
   return out;
 }
 
+// Count PNG entries inside a ZIP without decompressing anything. We walk the
+// central directory (filenames are enough; we don't need file contents).
+// Works in the Workers runtime with no dependencies.
+function countZipPngs(buf) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  // Locate End Of Central Directory (EOCD) signature 0x06054b50, scanning back.
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) return 0;
+  const total = dv.getUint16(eocd + 10, true);
+  let offset = dv.getUint32(eocd + 16, true);
+  let count = 0;
+  for (let n = 0; n < total; n++) {
+    if (dv.getUint32(offset, true) !== 0x02014b50) break; // central file header sig
+    const nameLen = dv.getUint16(offset + 28, true);
+    const extraLen = dv.getUint16(offset + 30, true);
+    const commentLen = dv.getUint16(offset + 32, true);
+    const nameBytes = buf.subarray(offset + 46, offset + 46 + nameLen);
+    let name = '';
+    for (let k = 0; k < nameLen; k++) name += String.fromCharCode(nameBytes[k]);
+    if (name.toLowerCase().endsWith('.png')) count++;
+    offset += 46 + nameLen + extraLen + commentLen;
+  }
+  return count;
+}
+
+// Recompute textureCount for any stored pack missing it (older uploads stored 0).
+async function backfillPacks(env) {
+  const packs = await listPacks(env);
+  let changed = false;
+  for (const p of packs) {
+    if (!p.textureCount) {
+      const b64 = await env.COMMUNITY.get(`packs/${p.id}.zip`);
+      if (b64) {
+        p.textureCount = countZipPngs(base64ToBytes(b64));
+        changed = true;
+        await env.COMMUNITY.put(`packs/${p.id}.json`, JSON.stringify(p));
+      }
+    }
+  }
+  if (changed) {
+    const textures = await listTextures(env);
+    await saveIndex(env, textures, packs);
+  }
+  return packs;
+}
+
 async function getAdmins(env) {
   const j = await readJson(env, 'admins.json', { admins: ADMIN_SEED });
   const list = Array.isArray(j.admins) ? j.admins : ADMIN_SEED;
@@ -104,7 +153,7 @@ export default {
       const type = url.searchParams.get('type');
       const limit = Math.min(200, parseInt(url.searchParams.get('limit') || '100', 10) || 100);
       let textures = await listTextures(env);
-      let packs = await listPacks(env);
+      let packs = await backfillPacks(env);
       const match = (m) => {
         const tags = (m.tags || []).map((t) => String(t).toLowerCase());
         if (tag && !tags.includes(tag)) return false;
@@ -207,7 +256,8 @@ export default {
         return json(meta, 201);
       } else {
         await env.COMMUNITY.put(`packs/${id}.zip`, b64);
-        const meta = { id, fileName: `${id}.zip`, originalFileName: originalName, description: '', textureCount: 0, sizeBytes: buf.length, uploader: handle, uploadedAt: Date.now(), tags: [] };
+        const textureCount = countZipPngs(buf);
+        const meta = { id, fileName: `${id}.zip`, originalFileName: originalName, description: '', textureCount, sizeBytes: buf.length, uploader: handle, uploadedAt: Date.now(), tags: [] };
         await env.COMMUNITY.put(`packs/${id}.json`, JSON.stringify(meta));
         const packs = await listPacks(env);
         packs.unshift(meta);

@@ -96,3 +96,16 @@ export async function communityGetModeration(): Promise<unknown[]> {
   if (!r.ok) throw new Error('Admin only');
   return (await r.json()) as unknown[];
 }
+
+export async function communityUpdateTextureTags(id: string, tags: string[]): Promise<unknown> {
+  const headers = { ...(await authHeaders()), 'Content-Type': 'application/json' };
+  const r = await fetch(`${BASE_URL}/api/catalog/texture/${id}`, { method: 'PATCH', headers, body: JSON.stringify({ tags }) });
+  if (!r.ok) { const j = (await r.json().catch(() => ({ error: `HTTP ${r.status}` }))) as { error?: string }; throw new Error(j.error || 'Tag update failed'); }
+  return (await r.json()) as unknown;
+}
+export async function communityUpdatePackTags(id: string, tags: string[]): Promise<unknown> {
+  const headers = { ...(await authHeaders()), 'Content-Type': 'application/json' };
+  const r = await fetch(`${BASE_URL}/api/catalog/pack/${id}`, { method: 'PATCH', headers, body: JSON.stringify({ tags }) });
+  if (!r.ok) { const j = (await r.json().catch(() => ({ error: `HTTP ${r.status}` }))) as { error?: string }; throw new Error(j.error || 'Tag update failed'); }
+  return (await r.json()) as unknown;
+}

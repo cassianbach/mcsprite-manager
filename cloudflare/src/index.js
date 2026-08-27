@@ -8,7 +8,7 @@ const MAX_PACK = 20 * 1024 * 1024;     // 20 MB (KV 25MB limit minus base64 over
 
 function cors(res) {
   res.headers.set('Access-Control-Allow-Origin', '*');
-  res.headers.set('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.headers.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   return res;
 }
@@ -155,6 +155,39 @@ export default {
         await saveIndex(env, await listTextures(env), packs);
         return json(meta, 201);
       }
+    }
+
+    // PATCH tags (owner or admin)
+    if (method === 'PATCH' && (url.pathname.startsWith('/api/catalog/texture/') || url.pathname.startsWith('/api/catalog/pack/'))) {
+      const isTex = url.pathname.includes('/texture/');
+      const id = decodeURIComponent(url.pathname.split('/').pop() || '');
+      const handle = await verifyHandle(request);
+      if (!handle) return json({ error: 'login required' }, 401);
+      let meta = null;
+      try {
+        const key = isTex ? `textures/${id}.meta.json` : `packs/${id}.json`;
+        const s = await env.COMMUNITY.get(key);
+        if (s) meta = JSON.parse(s);
+      } catch {}
+      if (!meta) return json({ error: 'not found' }, 404);
+      const isOwner = String(meta.uploader).toLowerCase() === handle.toLowerCase();
+      const admin = await isAdmin(env, handle);
+      if (!isOwner && !admin) return json({ error: 'only owner or admin' }, 403);
+      let tags = [];
+      try { const body = await request.json(); tags = Array.isArray(body.tags) ? body.tags : []; } catch {}
+      const clean = [...new Set(tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean))].slice(0, 12);
+      meta.tags = clean;
+      const key = isTex ? `textures/${id}.meta.json` : `packs/${id}.json`;
+      await env.COMMUNITY.put(key, JSON.stringify(meta));
+      // update index
+      if (isTex) {
+        const textures = (await listTextures(env)).map((m) => (m.id === id ? meta : m));
+        await saveIndex(env, textures, await listPacks(env));
+      } else {
+        const packs = (await listPacks(env)).map((m) => (m.id === id ? meta : m));
+        await saveIndex(env, await listTextures(env), packs);
+      }
+      return json(meta);
     }
 
     // DELETE with reason

@@ -206,6 +206,8 @@ const api = {
     deleteTexture: (id: string, reason?: string): Promise<boolean> => ipcRenderer.invoke(IPC.community.deleteTexture, id, reason),
     deletePack: (id: string, reason?: string): Promise<boolean> => ipcRenderer.invoke(IPC.community.deletePack, id, reason),
     getModeration: (): Promise<unknown[]> => ipcRenderer.invoke(IPC.community.getModeration),
+    updateTextureTags: (id: string, tags: string[]): Promise<unknown> => ipcRenderer.invoke(IPC.community.updateTextureTags, id, tags),
+    updatePackTags: (id: string, tags: string[]): Promise<unknown> => ipcRenderer.invoke(IPC.community.updatePackTags, id, tags),
   },
 };
 

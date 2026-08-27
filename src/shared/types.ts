@@ -342,5 +342,7 @@ export const IPC = {
     deleteTexture: 'community:deleteTexture',
     deletePack: 'community:deletePack',
     getModeration: 'community:getModeration',
+    updateTextureTags: 'community:updateTextureTags',
+    updatePackTags: 'community:updatePackTags',
   },
 } as const;

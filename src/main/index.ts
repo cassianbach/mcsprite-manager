@@ -411,6 +411,8 @@ function registerIpc(): void {
   ipcMain.handle(IPC.community.deleteTexture, (_e, id: string, reason?: string) => community.communityDeleteTexture(id, reason));
   ipcMain.handle(IPC.community.deletePack, (_e, id: string, reason?: string) => community.communityDeletePack(id, reason));
   ipcMain.handle(IPC.community.getModeration, () => community.communityGetModeration());
+  ipcMain.handle(IPC.community.updateTextureTags, (_e, id: string, tags: string[]) => community.communityUpdateTextureTags(id, tags));
+  ipcMain.handle(IPC.community.updatePackTags, (_e, id: string, tags: string[]) => community.communityUpdatePackTags(id, tags));
 }
 
 app.whenReady().then(() => {

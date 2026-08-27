@@ -186,10 +186,16 @@ export function UploadedCatalog(): JSX.Element {
     } catch (e) { setMsg((e as Error).message); }
   }
   async function onTagTex(id: string, tags: string[]) {
-    await window.api.library.updateTextureTags(id, tags); void refresh();
+    try {
+      if (scope === 'community') { await window.api.community.updateTextureTags(id, tags); void refreshCommunity(); }
+      else { await window.api.library.updateTextureTags(id, tags); void refresh(); }
+    } catch (e) { setMsg((e as Error).message); }
   }
   async function onTagPack(id: string, tags: string[]) {
-    await window.api.library.updatePackTags(id, tags); void refresh();
+    try {
+      if (scope === 'community') { await window.api.community.updatePackTags(id, tags); void refreshCommunity(); }
+      else { await window.api.library.updatePackTags(id, tags); void refresh(); }
+    } catch (e) { setMsg((e as Error).message); }
   }
 
   const allTags = useMemo(() => {

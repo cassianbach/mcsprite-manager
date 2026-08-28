@@ -1,7 +1,7 @@
 {
   "name": "mcsprite-manager",
-  "version": "0.2.12",
-  "description": "MCsprite Manager — Minecraft texture & sprite editor with community catalogue, version switcher, and animation tools",
+  "version": "0.3.0",
+  "description": "MCsprite Manager — a Minecraft texture & sprite editor with a library of theme presets, per-biome tinting for grass and foliage colormaps, and a shape tool (rectangle, ellipse, line, polygon, and star) with fill/outline and rotation. Also includes a community catalogue, version switcher, and animation tools.",
   "main": "out/main/index.js",
   "author": "You",
   "license": "MIT",

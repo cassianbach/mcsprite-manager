@@ -116,10 +116,16 @@ const api = {
     delete: (projectId: string, textureId: string): Promise<{ ok: true }> =>
       ipcRenderer.invoke(IPC.textures.delete, projectId, textureId),
   },
+  studio: {
+    get: (projectId: string, key: string): Promise<unknown | null> =>
+      ipcRenderer.invoke(IPC.studio.get, projectId, key),
+    set: (projectId: string, key: string, data: unknown): Promise<{ ok: true }> =>
+      ipcRenderer.invoke(IPC.studio.set, projectId, key, data),
+  },
   io: {
     exportZip: (
       projectId: string,
-      opts?: { packFormat?: number; description?: string },
+      opts?: { packFormat?: number; description?: string; normalizeFrames?: boolean },
     ): Promise<{ ok: boolean; cancelled?: boolean; path?: string; textureCount: number }> =>
       ipcRenderer.invoke(IPC.io.exportZip, projectId, opts),
     exportPng: (

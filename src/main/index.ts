@@ -36,6 +36,8 @@ import {
   importPngFile,
   readVanillaIndex,
   readVanillaPng,
+  readStudioData,
+  writeStudioData,
   addVanillaTexture,
 } from './projectStore';
 import * as userLibrary from './userLibrary';
@@ -50,6 +52,26 @@ const store = new Store<AppSettings>({
   name: 'settings',
   defaults: {
     theme: 'dark',
+    customTokens: {
+      'bg-0': '#0b0d10',
+      'bg-1': '#14181d',
+      'bg-2': '#1d242c',
+      'bg-3': '#262f38',
+      'fg-0': '#f5f7fa',
+      'fg-1': '#c9d1d9',
+      'fg-2': '#7d8590',
+      'fg-3': '#4a525c',
+      line: '#232a32',
+      'line-strong': '#313a44',
+      accent: '#6cf0d6',
+      'accent-fg': '#0b0d10',
+      'accent-soft': 'rgba(108, 240, 214, 0.14)',
+      danger: '#ff6b6b',
+      warning: '#ffc857',
+      info: '#6cb8f0',
+    },
+    backgroundImage: null,
+    backgroundCrop: null,
     activeMode: 'texture',
     activeProjectId: null,
     shortcuts: {},
@@ -246,6 +268,11 @@ function registerIpc(): void {
         };
       },
     ) => saveProjectTextureFull(projectId, textureId, input),
+  );
+
+  ipcMain.handle(IPC.studio.get, (_e, projectId: string, key: string) => readStudioData(projectId, key));
+  ipcMain.handle(IPC.studio.set, (_e, projectId: string, key: string, data: unknown) =>
+    writeStudioData(projectId, key, data),
   );
 
   ipcMain.handle(IPC.io.exportList, (_e, projectId: string) => listDetailed(projectId));

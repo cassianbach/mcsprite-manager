@@ -1,6 +1,8 @@
 .catalog {
+  min-height: 100%;
   padding: var(--space-5);
   color: var(--fg-0);
+  background: var(--bg-0);
 }
 
 .catalog-header {

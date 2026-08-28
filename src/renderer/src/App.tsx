@@ -3,10 +3,11 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { Shell } from './components/Shell';
 import { ProjectBrowser } from './pages/ProjectBrowser';
 import { Editor } from './pages/Editor';
-import { SpriteEditor } from './pages/SpriteEditor';
 import { Catalog } from './pages/Catalog';
 import { BulkEdit } from './pages/BulkEdit';
 import { ImportExport } from './pages/ImportExport';
+import GlintStudio from './pages/GlintStudio';
+import BiomeTintStudio from './pages/BiomeTintStudio';
 import { CollabLanding } from './pages/CollabLanding';
 import { UploadedCatalog } from './pages/UploadedCatalog';
 import { useSettings } from './store/settings';
@@ -44,10 +45,42 @@ function CollabHandler(): null {
 
 export function App(): JSX.Element {
   const theme = useSettings((s) => s.theme);
+  const backgroundImage = useSettings((s) => s.backgroundImage);
+  const backgroundCrop = useSettings((s) => s.backgroundCrop);
+  const customTokens = useSettings((s) => s.customTokens);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    if (theme === 'custom') {
+      for (const [k, v] of Object.entries(customTokens)) root.style.setProperty(`--${k}`, v as string);
+    } else {
+      for (const k of Object.keys(customTokens)) root.style.removeProperty(`--${k}`);
+    }
+    if (!backgroundImage) {
+      root.style.setProperty('--app-bg-image', 'none');
+      return;
+    }
+    const img = backgroundImage.startsWith('data:')
+      ? backgroundImage
+      : `file:///${backgroundImage.replace(/\\/g, '/')}`;
+    root.style.setProperty('--app-bg-image', `url("${img}")`);
+
+    // Selected region (fractions) -> scale that region to fill the viewport.
+    // size = 100%/w (and /h); position aligns the region's top-left to the corner.
+    const crop = backgroundCrop;
+    if (crop && crop.w < 1 && crop.h < 1) {
+      const sw = (1 / crop.w) * 100;
+      const sh = (1 / crop.h) * 100;
+      const px = (-crop.x / (crop.w - 1)) * 100;
+      const py = (-crop.y / (crop.h - 1)) * 100;
+      root.style.setProperty('--app-bg-size', `${sw}% ${sh}%`);
+      root.style.setProperty('--app-bg-pos', `${px}% ${py}%`);
+    } else {
+      root.style.setProperty('--app-bg-size', 'cover');
+      root.style.setProperty('--app-bg-pos', 'center');
+    }
+  }, [theme, backgroundImage, backgroundCrop, customTokens]);
 
   return (
     <Shell>
@@ -58,10 +91,11 @@ export function App(): JSX.Element {
         <Route path="/project/:id" element={<Editor />} />
         <Route path="/project/:id/catalog" element={<Catalog />} />
         <Route path="/project/:id/bulk" element={<BulkEdit />} />
-        <Route path="/project/:id/export" element={<ImportExport />} />
-        <Route path="/uploaded" element={<UploadedCatalog />} />
+  <Route path="/project/:id/export" element={<ImportExport />} />
+  <Route path="/project/:id/glint" element={<GlintStudio />} />
+  <Route path="/project/:id/biome" element={<BiomeTintStudio />} />
+  <Route path="/uploaded" element={<UploadedCatalog />} />
         <Route path="/collab" element={<CollabLanding />} />
-        <Route path="/sprite" element={<SpriteEditor />} />
         <Route path="*" element={<Navigate to="/projects" replace />} />
       </Routes>
     </Shell>

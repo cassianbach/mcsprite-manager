@@ -5,9 +5,24 @@
   grid-template-areas:
     'title title'
     'side main';
+  position: relative;
   height: 100%;
-  background: var(--bg-0);
+  background: transparent;
   color: var(--fg-0);
+}
+
+/* App-wide background image, drawn as a smooth fixed layer behind all content. */
+.shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--app-bg-image, none);
+  background-size: var(--app-bg-size, cover);
+  background-position: var(--app-bg-pos, center);
+  background-repeat: no-repeat;
+  image-rendering: auto;
+  pointer-events: none;
 }
 
 .titlebar {
@@ -135,5 +150,5 @@
 .main {
   grid-area: main;
   overflow: auto;
-  background: var(--bg-0);
+  background: transparent;
 }

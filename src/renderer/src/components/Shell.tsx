@@ -4,11 +4,13 @@ import { NavLink } from 'react-router-dom';
 import { useSettings, setTheme } from '../store/settings';
 import { setActiveMode } from '../store/settings';
 import { Logo } from './Logo';
+import { SettingsDialog } from './SettingsDialog';
 import type { UpdateInfo } from '@shared/types';
 import './Shell.css';
 
 export function Shell({ children }: { children: ReactNode }): JSX.Element {
   const mode = useSettings((s) => s.activeMode);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div className="shell">
@@ -18,6 +20,16 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
           <h1>MCsprite Manager</h1>
         </div>
         <div className="titlebar-controls">
+          <button aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <circle cx="7" cy="7" r="2.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
+              <path
+                d="M7 1.5v1.6M7 10.9v1.6M1.5 7h1.6M10.9 7h1.6M3 3l1.1 1.1M9.9 9.9 11 11M11 3l-1.1 1.1M4.1 9.9 3 11"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
+            </svg>
+          </button>
           <ThemeToggle />
           <button aria-label="Minimize" onClick={() => window.api.window.minimize()}>
             <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5h6" stroke="currentColor" strokeWidth="1" fill="none" /></svg>
@@ -40,13 +52,6 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
             onClick={() => setActiveMode('texture')}
           >
             <Icon name="layers" /> Texture
-          </NavLink>
-          <NavLink
-            to="/sprite"
-            className={({ isActive }) => 'sidebar-link' + (isActive || mode === 'sprite' ? ' active' : '')}
-            onClick={() => setActiveMode('sprite')}
-          >
-            <Icon name="sparkle" /> Sprite
           </NavLink>
         </div>
 
@@ -72,6 +77,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
       </aside>
 
       <main className="main">{children}</main>
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

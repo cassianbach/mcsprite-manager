@@ -18,12 +18,18 @@ body {
   font-family: var(--font-ui);
   font-size: 14px;
   line-height: 1.4;
-  background: var(--bg-0);
+  background-color: var(--bg-0);
   color: var(--fg-0);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
   overflow: hidden;
+}
+
+/* Background image applies everywhere EXCEPT the sidebars (kept solid for legibility). */
+.sidebar,
+.side {
+  background-image: none !important;
 }
 
 button {

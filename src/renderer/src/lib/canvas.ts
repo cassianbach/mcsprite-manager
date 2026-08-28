@@ -1242,3 +1242,177 @@ export function transformPixels(
   }
   return { pixels: out, w: nW, h: nH };
 }
+
+export type ShapeKind =
+  | 'rectangle'
+  | 'ellipse'
+  | 'line'
+  | 'triangle'
+  | 'polygon'
+  | 'star';
+
+export interface ShapeOptions {
+  /** Bounding box, in texture pixels. May have zero/negative extent (clamped). */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  shape: ShapeKind;
+  fill: boolean; // true = filled, false = outline band of thickness strokeW
+  strokeW: number; // outline thickness (>=1)
+  rotation: number; // degrees
+  color: [number, number, number, number];
+}
+
+/** Ray-casting point-in-polygon test for a closed vertex loop (floats). */
+function pointInPolygon(px: number, py: number, poly: Array<[number, number]>): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0];
+    const yi = poly[i][1];
+    const xj = poly[j][0];
+    const yj = poly[j][1];
+    const intersect = yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Rasterize a shape (rect/ellipse/line/triangle/polygon/star) into `pixels`.
+ * Mutates `pixels`, returns the dirty rect (or null if off-canvas).
+ */
+export function drawShape(
+  pixels: Uint8ClampedArray,
+  texW: number,
+  texH: number,
+  o: ShapeOptions,
+): { x: number; y: number; w: number; h: number } | null {
+  const [r, g, b, a] = o.color;
+
+  // A single click (no drag) paints one pixel at the anchor.
+  if (o.w === 0 && o.h === 0) {
+    const px = o.x;
+    const py = o.y;
+    if (px < 0 || py < 0 || px >= texW || py >= texH) return null;
+    const idx = (py * texW + px) * 4;
+    pixels[idx] = r; pixels[idx + 1] = g; pixels[idx + 2] = b; pixels[idx + 3] = a;
+    return { x: px, y: py, w: 1, h: 1 };
+  }
+
+  const bx = Math.min(o.x, o.x + o.w);
+  const by = Math.min(o.y, o.y + o.h);
+  const bw = Math.abs(o.w);
+  const bh = Math.abs(o.h);
+  const cx = bx + bw / 2;
+  const cy = by + bh / 2;
+  const hx = bw / 2;
+  const hy = bh / 2;
+
+  // Clip the working bbox to the texture.
+  const x0 = Math.max(0, Math.floor(bx));
+  const y0 = Math.max(0, Math.floor(by));
+  const x1 = Math.min(texW - 1, Math.ceil(bx + bw));
+  const y1 = Math.min(texH - 1, Math.ceil(by + bh));
+  if (x0 > x1 || y0 > y1) return null;
+
+  const ang = (-o.rotation * Math.PI) / 180;
+  const cos = Math.cos(ang);
+  const sin = Math.sin(ang);
+
+  // Build the polygon vertex loop (in local pixel coords relative to center).
+  // Used for point-in-polygon tests (triangle, polygon, star, line capsule).
+  const poly: Array<[number, number]> = [];
+  if (o.shape === 'triangle') {
+    poly.push([0, -hy], [-hx, hy], [hx, hy]);
+  } else if (o.shape === 'polygon') {
+    const n = 6; // hexagon
+    for (let i = 0; i < n; i++) {
+      const t = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+      poly.push([hx * Math.cos(t), hy * Math.sin(t)]);
+    }
+  } else if (o.shape === 'star') {
+    const n = 5;
+    const innerR = 0.45;
+    for (let i = 0; i < n * 2; i++) {
+      const t = -Math.PI / 2 + (i * Math.PI) / n;
+      const rad = i % 2 === 0 ? 1 : innerR;
+      poly.push([hx * rad * Math.cos(t), hy * rad * Math.sin(t)]);
+    }
+  } else if (o.shape === 'line') {
+    // Capsule from start corner to opposite corner, thickness = strokeW.
+    const ax = o.x;
+    const ay = o.y;
+    const bxp = o.x + o.w;
+    const byp = o.y + o.h;
+    const t = Math.max(1, o.strokeW) / 2;
+    const dx = bxp - ax;
+    const dy = byp - ay;
+    const len = Math.hypot(dx, dy) || 1;
+    const ox = (-dy / len) * t;
+    const oy = (dx / len) * t;
+    poly.push(
+      [ax + ox - cx, ay + oy - cy],
+      [bxp + ox - cx, byp + oy - cy],
+      [bxp - ox - cx, byp - oy - cy],
+      [ax - ox - cx, ay - oy - cy],
+    );
+  }
+
+  // First pass: compute the inside mask over the working bbox.
+  const mw = x1 - x0 + 1;
+  const mh = y1 - y0 + 1;
+  const mask = new Uint8Array(mw * mh);
+  for (let yy = y0; yy <= y1; yy++) {
+    for (let xx = x0; xx <= x1; xx++) {
+      const dx = xx + 0.5 - cx;
+      const dy = yy + 0.5 - cy;
+      const lx = dx * cos - dy * sin;
+      const ly = dx * sin + dy * cos;
+      let inside = false;
+      if (o.shape === 'rectangle') {
+        inside = Math.abs(lx) <= hx && Math.abs(ly) <= hy;
+      } else if (o.shape === 'ellipse') {
+        const nx = hx === 0 ? 0 : lx / hx;
+        const ny = hy === 0 ? 0 : ly / hy;
+        inside = nx * nx + ny * ny <= 1;
+      } else {
+        inside = pointInPolygon(lx, ly, poly);
+      }
+      if (inside) mask[(yy - y0) * mw + (xx - x0)] = 1;
+    }
+  }
+
+  // Second pass: paint.
+  const stroke = Math.max(1, o.strokeW);
+  for (let yy = y0; yy <= y1; yy++) {
+    for (let xx = x0; xx <= x1; xx++) {
+      const mi = (yy - y0) * mw + (xx - x0);
+      if (!mask[mi]) continue;
+      let draw = o.fill;
+      if (!o.fill) {
+        // Outline band: keep pixels whose interior is within stroke-1 of an edge.
+        let interior = true;
+        const rr = stroke - 1;
+        for (let oy = -rr; oy <= rr && interior; oy++) {
+          for (let ox = -rr; ox <= rr; ox++) {
+            const mx = xx + ox - x0;
+            const my = yy + oy - y0;
+            const outside = mx < 0 || my < 0 || mx >= mw || my >= mh;
+            if (outside || mask[my * mw + mx] === 0) {
+              interior = false;
+              break;
+            }
+          }
+        }
+        draw = !interior;
+      }
+      if (draw) {
+        const idx = (yy * texW + xx) * 4;
+        pixels[idx] = r; pixels[idx + 1] = g; pixels[idx + 2] = b; pixels[idx + 3] = a;
+      }
+    }
+  }
+
+  return { x: x0, y: y0, w: mw, h: mh };
+}

@@ -107,9 +107,50 @@ export interface Texture {
   collaborators?: string[];
 }
 
+/** The set of CSS color/global tokens a theme can override. */
+export interface ThemeTokens {
+  'bg-0': string;
+  'bg-1': string;
+  'bg-2': string;
+  'bg-3': string;
+  'fg-0': string;
+  'fg-1': string;
+  'fg-2': string;
+  'fg-3': string;
+  line: string;
+  'line-strong': string;
+  accent: string;
+  'accent-fg': string;
+  'accent-soft': string;
+  danger: string;
+  warning: string;
+  info: string;
+}
+
+export type ThemeName =
+  | 'dark'
+  | 'light'
+  | 'galaxy'
+  | 'forest'
+  | 'aquamarine'
+  | 'desert'
+  | 'cream'
+  | 'midnight'
+  | 'ocean'
+  | 'sunset'
+  | 'solarized'
+  | 'mono'
+  | 'custom';
+
 export interface AppSettings {
-  theme: 'dark' | 'light';
-  activeMode: 'texture' | 'sprite';
+  theme: ThemeName;
+  /** Token overrides used when theme === 'custom'. */
+  customTokens: ThemeTokens;
+  /** Optional background image (data URL) applied app-wide except sidebars. */
+  backgroundImage: string | null;
+  /** Selected region of the background image as fractions (0..1). null = whole image (cover). */
+  backgroundCrop: { x: number; y: number; w: number; h: number } | null;
+  activeMode: 'texture';
   activeProjectId: string | null;
   shortcuts: Record<string, string>;
 }
@@ -160,6 +201,16 @@ export interface ImportTexturePreview {
 }
 
 export type ImportAction = 'import' | 'skip' | 'overwrite' | 'rename';
+
+/** A file the studio contributes to the exported resource pack. */
+export interface StudioFile {
+  /** Minecraft path inside the pack, e.g. assets/minecraft/items/diamond_sword.json */
+  path: string;
+  /** PNG data URL (mutually exclusive with json). */
+  dataUrl?: string;
+  /** Pre-serialized JSON file content. */
+  json?: string;
+}
 
 export interface ImportSelection {
   /** Original path inside the zip. */
@@ -253,6 +304,26 @@ export interface CollabTextureSync {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
+  customTokens: {
+    'bg-0': '#0b0d10',
+    'bg-1': '#14181d',
+    'bg-2': '#1d242c',
+    'bg-3': '#262f38',
+    'fg-0': '#f5f7fa',
+    'fg-1': '#c9d1d9',
+    'fg-2': '#7d8590',
+    'fg-3': '#4a525c',
+    line: '#232a32',
+    'line-strong': '#313a44',
+    accent: '#6cf0d6',
+    'accent-fg': '#0b0d10',
+    'accent-soft': 'rgba(108, 240, 214, 0.14)',
+    danger: '#ff6b6b',
+    warning: '#ffc857',
+    info: '#6cb8f0',
+  },
+  backgroundImage: null,
+  backgroundCrop: null,
   activeMode: 'texture',
   activeProjectId: null,
   shortcuts: {},
@@ -349,5 +420,9 @@ export const IPC = {
     getAdmins: 'community:getAdmins',
     addAdmin: 'community:addAdmin',
     removeAdmin: 'community:removeAdmin',
+  },
+  studio: {
+    get: 'studio:get',
+    set: 'studio:set',
   },
 } as const;

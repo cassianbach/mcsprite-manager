@@ -74,3 +74,205 @@
 
   color-scheme: light;
 }
+
+/* ---- Preset themes ---- */
+
+:root[data-theme='galaxy'] {
+  --bg-0: #0d0a1a;
+  --bg-1: #161226;
+  --bg-2: #1f1a33;
+  --bg-3: #2a2440;
+  --fg-0: #f3efff;
+  --fg-1: #c9bfe0;
+  --fg-2: #8b82a8;
+  --fg-3: #5a5276;
+  --line: #241d3a;
+  --line-strong: #352b54;
+  --accent: #b07cff;
+  --accent-fg: #0d0a1a;
+  --accent-soft: rgba(176, 124, 255, 0.16);
+  --danger: #ff6b9d;
+  --warning: #ffd166;
+  --info: #7cc4ff;
+  color-scheme: dark;
+}
+
+:root[data-theme='forest'] {
+  --bg-0: #0c140e;
+  --bg-1: #112016;
+  --bg-2: #16291d;
+  --bg-3: #1d3527;
+  --fg-0: #eafff0;
+  --fg-1: #bfe6cd;
+  --fg-2: #7fa98c;
+  --fg-3: #4f6b58;
+  --line: #1a2a1f;
+  --line-strong: #28402f;
+  --accent: #4fd17a;
+  --accent-fg: #0c140e;
+  --accent-soft: rgba(79, 209, 122, 0.15);
+  --danger: #ff7b6b;
+  --warning: #f2c14e;
+  --info: #6cc8f0;
+  color-scheme: dark;
+}
+
+:root[data-theme='aquamarine'] {
+  --bg-0: #07171a;
+  --bg-1: #0c2227;
+  --bg-2: #113038;
+  --bg-3: #163f49;
+  --fg-0: #e8fffb;
+  --fg-1: #b6e9e2;
+  --fg-2: #74b3ac;
+  --fg-3: #477b75;
+  --line: #0f2c32;
+  --line-strong: #18454e;
+  --accent: #29e0c8;
+  --accent-fg: #07171a;
+  --accent-soft: rgba(41, 224, 200, 0.15);
+  --danger: #ff6b8a;
+  --warning: #ffd56b;
+  --info: #6cb8f0;
+  color-scheme: dark;
+}
+
+:root[data-theme='desert'] {
+  --bg-0: #fbf3bf;
+  --bg-1: #fffbe6;
+  --bg-2: #f5e9a8;
+  --bg-3: #ecd98f;
+  --fg-0: #3a3410;
+  --fg-1: #5c5318;
+  --fg-2: #8a7d3a;
+  --fg-3: #b3a766;
+  --line: #e3d488;
+  --line-strong: #cdbc63;
+  --accent: #e6c11f;
+  --accent-fg: #1a1602;
+  --accent-soft: rgba(230, 193, 31, 0.16);
+  --danger: #c0492f;
+  --warning: #b09a1e;
+  --info: #2a7fa0;
+  color-scheme: light;
+}
+
+:root[data-theme='cream'] {
+  --bg-0: #fbf3e2;
+  --bg-1: #fffaf0;
+  --bg-2: #f3e7cf;
+  --bg-3: #e8d8b8;
+  --fg-0: #3a2f1a;
+  --fg-1: #5c4d30;
+  --fg-2: #8a7650;
+  --fg-3: #b39c74;
+  --line: #e0cda3;
+  --line-strong: #c9b183;
+  --accent: #e0a32e;
+  --accent-fg: #1a1407;
+  --accent-soft: rgba(224, 163, 46, 0.14);
+  --danger: #c0492f;
+  --warning: #b97722;
+  --info: #2a7fa0;
+  color-scheme: light;
+}
+
+:root[data-theme='midnight'] {
+  --bg-0: #070b16;
+  --bg-1: #0c1322;
+  --bg-2: #121c30;
+  --bg-3: #18243c;
+  --fg-0: #e8eefc;
+  --fg-1: #b3c2e0;
+  --fg-2: #7488ad;
+  --fg-3: #4a5a7d;
+  --line: #101a2e;
+  --line-strong: #1c2c49;
+  --accent: #5b9dff;
+  --accent-fg: #070b16;
+  --accent-soft: rgba(91, 157, 255, 0.15);
+  --danger: #ff6b8a;
+  --warning: #ffce6b;
+  --info: #6cc8f0;
+  color-scheme: dark;
+}
+
+:root[data-theme='ocean'] {
+  --bg-0: #06141f;
+  --bg-1: #0a1d2e;
+  --bg-2: #0f2a40;
+  --bg-3: #153849;
+  --fg-0: #e6f3ff;
+  --fg-1: #aacdec;
+  --fg-2: #6d97b5;
+  --fg-3: #436880;
+  --line: #0e2436;
+  --line-strong: #173850;
+  --accent: #1f8fff;
+  --accent-fg: #06141f;
+  --accent-soft: rgba(31, 143, 255, 0.15);
+  --danger: #ff7b9d;
+  --warning: #ffd36b;
+  --info: #57d6e0;
+  color-scheme: dark;
+}
+
+:root[data-theme='sunset'] {
+  --bg-0: #1a0e16;
+  --bg-1: #271421;
+  --bg-2: #381b2c;
+  --bg-3: #4a2438;
+  --fg-0: #fff0f3;
+  --fg-1: #f0c6cf;
+  --fg-2: #c08a98;
+  --fg-3: #8a5e6a;
+  --line: #341826;
+  --line-strong: #4a2235;
+  --accent: #ff7a59;
+  --accent-fg: #1a0e16;
+  --accent-soft: rgba(255, 122, 89, 0.16);
+  --danger: #ff5c7a;
+  --warning: #ffc24d;
+  --info: #7cc4ff;
+  color-scheme: dark;
+}
+
+:root[data-theme='solarized'] {
+  --bg-0: #002b36;
+  --bg-1: #073642;
+  --bg-2: #0c4a56;
+  --bg-3: #115a66;
+  --fg-0: #fdf6e3;
+  --fg-1: #93a1a1;
+  --fg-2: #657b83;
+  --fg-3: #586e75;
+  --line: #073642;
+  --line-strong: #0c4a56;
+  --accent: #2aa198;
+  --accent-fg: #002b36;
+  --accent-soft: rgba(42, 161, 152, 0.16);
+  --danger: #dc322f;
+  --warning: #b58900;
+  --info: #268bd2;
+  color-scheme: dark;
+}
+
+:root[data-theme='mono'] {
+  --bg-0: #0a0a0a;
+  --bg-1: #141414;
+  --bg-2: #1e1e1e;
+  --bg-3: #2a2a2a;
+  --fg-0: #f5f5f5;
+  --fg-1: #c8c8c8;
+  --fg-2: #888888;
+  --fg-3: #555555;
+  --line: #222222;
+  --line-strong: #333333;
+  --accent: #e0e0e0;
+  --accent-fg: #0a0a0a;
+  --accent-soft: rgba(224, 224, 224, 0.14);
+  --danger: #ff6b6b;
+  --warning: #ffc857;
+  --info: #9aa0a6;
+  color-scheme: dark;
+}

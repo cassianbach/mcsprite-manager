@@ -15,7 +15,16 @@ export type ToolId =
   | 'smush'
   | 'spray'
   | 'fade'
-  | 'replace';
+  | 'replace'
+  | 'shape';
+
+export type ShapeType =
+  | 'rectangle'
+  | 'ellipse'
+  | 'line'
+  | 'triangle'
+  | 'polygon'
+  | 'star';
 
 export type MirrorMode = 'none' | 'horizontal' | 'vertical' | 'quad';
 
@@ -50,6 +59,12 @@ export interface EditorUiState {
   replaceFrom: string; // hex (with alpha)
   replaceTo: string; // hex (with alpha)
   replaceTolerance: number; // 0..255
+
+  // Shape tool (rect/ellipse/line/triangle/polygon/star)
+  shapeType: ShapeType;
+  shapeFill: boolean; // true = filled, false = outline only
+  shapeStroke: number; // outline thickness (1..32)
+  shapeRotation: number; // 0..359 degrees
 
   // Recent colors palette (last 10 selected), always visible in the sidebar
   recentColors: string[];
@@ -89,6 +104,10 @@ export const useEditorUi = create<EditorUiState>()(
     replaceFrom: '#ffffff',
     replaceTo: '#000000',
     replaceTolerance: 32,
+    shapeType: 'rectangle',
+    shapeFill: true,
+    shapeStroke: 2,
+    shapeRotation: 0,
     recentColors: [],
     recolor: {
       hue: 0,
@@ -227,6 +246,26 @@ export const setReplaceTo = (hex: string) =>
 export const setReplaceTolerance = (n: number) =>
   useEditorUi.setState((s) => {
     s.replaceTolerance = Math.max(0, Math.min(255, Math.round(n)));
+  });
+
+export const setShapeType = (t: ShapeType) =>
+  useEditorUi.setState((s) => {
+    s.shapeType = t;
+  });
+
+export const setShapeFill = (v: boolean) =>
+  useEditorUi.setState((s) => {
+    s.shapeFill = v;
+  });
+
+export const setShapeStroke = (n: number) =>
+  useEditorUi.setState((s) => {
+    s.shapeStroke = Math.max(1, Math.min(32, Math.round(n)));
+  });
+
+export const setShapeRotation = (deg: number) =>
+  useEditorUi.setState((s) => {
+    s.shapeRotation = ((Math.round(deg) % 360) + 360) % 360;
   });
 
 export const recordColor = (hex: string) =>

@@ -33,6 +33,7 @@ export function ImportExport(): JSX.Element {
   const [importMsg, setImportMsg] = useState<string>('');
 
   const [mcVersion, setMcVersion] = useState<string>(MC_VERSIONS[0].id);
+  const [normalizeFrames, setNormalizeFrames] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -54,7 +55,10 @@ export function ImportExport(): JSX.Element {
     setExporting(true);
     setExportMsg('');
     try {
-      const res = await window.api.io.exportZip(projectId, { packFormat: mcFormatForVersion(mcVersion) });
+      const res = await window.api.io.exportZip(projectId, {
+        packFormat: mcFormatForVersion(mcVersion),
+        normalizeFrames,
+      });
       if (res.cancelled) setExportMsg('Export cancelled.');
       else if (res.ok) setExportMsg(`Exported ${res.textureCount} textures to ${res.path}`);
       else setExportMsg('Export failed.');
@@ -208,6 +212,16 @@ export function ImportExport(): JSX.Element {
               </option>
             ))}
           </select>
+        </div>
+        <div className="ie-row">
+          <label className="ie-check">
+            <input
+              type="checkbox"
+              checked={normalizeFrames}
+              onChange={(e) => setNormalizeFrames(e.target.checked)}
+            />
+            Fix stretched animated frames (pad non-square frames to square)
+          </label>
         </div>
       </section>
 

@@ -201,3 +201,19 @@
   opacity: 0.7;
   font-style: italic;
 }
+
+.ie-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-1);
+  cursor: pointer;
+}
+
+.ie-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}

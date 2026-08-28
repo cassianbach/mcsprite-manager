@@ -19,6 +19,7 @@ import type {
   AddTextureResult,
 } from '../shared/types';
 import { packFormatForVersion } from '../shared/types';
+import type { StudioFile } from '../shared/types';
 
 const PROJECTS_ROOT = (): string => join(app.getPath('userData'), 'projects');
 
@@ -433,6 +434,35 @@ function buildStripPng(
   return PNG.sync.write(png);
 }
 
+/**
+ * Pad each frame of a vertical animation strip to a square so Minecraft does
+ * not stretch non-square frames into the square item/block display box.
+ * Source pixels are preserved (only transparent rows/columns are added, aligned
+ * to the top-left); the returned `size` is the new square frame dimension.
+ * Returns null when the frames are already square (nothing to do).
+ */
+function normalizeStripToSquare(
+  png: PNG,
+  frameWidth: number,
+  frameHeight: number,
+): { png: PNG; size: number } | null {
+  const frameCount = Math.round(png.height / frameHeight);
+  if (frameCount < 1) return null;
+  const size = Math.max(frameWidth, frameHeight);
+  if (size === frameWidth && size === frameHeight) return null;
+  const out = new PNG({ width: size, height: size * frameCount, colorType: 6 });
+  const offX = Math.floor((size - frameWidth) / 2);
+  const offY = Math.floor((size - frameHeight) / 2);
+  for (let i = 0; i < frameCount; i++) {
+    for (let r = 0; r < frameHeight; r++) {
+      const sOff = (i * frameHeight + r) * frameWidth * 4;
+      const dOff = (i * size + offY + r) * size * 4 + offX * 4; // center the art in the square
+      for (let c = 0; c < frameWidth * 4; c++) out.data[dOff + c] = png.data[sOff + c];
+    }
+  }
+  return { png: out, size };
+}
+
 interface BundleInput {
   width: number;
   height: number; // single-frame height (frameHeight)
@@ -576,6 +606,9 @@ function buildMcMcmeta(anim: McAnimationMeta): { animation: Record<string, unkno
   const animation: Record<string, unknown> = { interpolate: anim.interpolate };
 
   // Preserve non-square frame dimensions so MC slices the strip correctly.
+  // Minecraft's .png.mcmeta animation object uses `width`/`height` (NOT
+  // `framewidth`/`frameheight`, which it ignores) — using the wrong keys
+  // makes MC fall back to frame height = texture width, distorting the strip.
   if (typeof anim.frameWidth === 'number' && anim.frameWidth > 0) {
     animation.width = anim.frameWidth;
   }
@@ -605,10 +638,53 @@ function buildMcMcmeta(anim: McAnimationMeta): { animation: Record<string, unkno
   return { animation };
 }
 
+function studioDir(id: string): string {
+  return join(projectDir(id), 'studio');
+}
+
+// Build the pack.mcmeta `pack` section for a given format.
+// From 1.21.9 (resource pack format >= 65) Mojang replaced the single
+// `pack_format` field with the `min_format`/`max_format` range; a lone
+// `pack_format` is then invalid and MC rejects the whole pack ("wrong
+// version or broken"). For older formats we keep the classic single field.
+function packSection(packFormat: number, description: string): Record<string, unknown> {
+  if (packFormat >= 65) {
+    return { min_format: packFormat, max_format: 9999, description };
+  }
+  return { pack_format: packFormat, description };
+}
+
+export async function readStudioData(projectId: string, key: string): Promise<unknown | null> {
+  const p = join(studioDir(projectId), `${key}.json`);
+  try {
+    const buf = await fs.readFile(p, 'utf8');
+    return JSON.parse(buf);
+  } catch {
+    return null;
+  }
+}
+
+export async function writeStudioData(projectId: string, key: string, data: unknown): Promise<void> {
+  const dir = studioDir(projectId);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(join(dir, `${key}.json`), JSON.stringify(data, null, 2), 'utf8');
+}
+
+/** Decode a `data:...;base64,...` URL into a Buffer, or null if not base64. */
+function dataUrlToBuffer(dataUrl: string): Buffer | null {
+  const m = /^data:[\w/+-]+;base64,(.+)$/.exec(dataUrl.trim());
+  if (!m) return null;
+  try {
+    return Buffer.from(m[1], 'base64');
+  } catch {
+    return null;
+  }
+}
+
 export async function exportZipTo(
   projectId: string,
   targetPath: string,
-  opts?: { packFormat?: number; description?: string },
+  opts?: { packFormat?: number; description?: string; normalizeFrames?: boolean },
 ): Promise<ExportResult> {
   const project = await readProject(projectId);
   // Resolve the target pack format. Precedence: explicit option > the project's
@@ -621,6 +697,36 @@ export async function exportZipTo(
   }
   const description =
     opts?.description ?? project?.description ?? project?.name ?? 'Resource Pack';
+
+  // Pre-compute studio assets (async reads must happen outside the archive promise).
+  const studioAssets: { name: string; buf?: Buffer; json?: string }[] = [];
+  const biomeData = await readStudioData(projectId, 'biome');
+  if (biomeData && typeof biomeData === 'object') {
+    const b = biomeData as Record<string, string>;
+    const pushPng = (key: string, name: string) => {
+      const buf = b[key] ? dataUrlToBuffer(b[key]) : null;
+      if (buf) studioAssets.push({ name, buf });
+    };
+    pushPng('grass', 'assets/minecraft/textures/colormap/grass.png');
+    pushPng('foliage', 'assets/minecraft/textures/colormap/foliage.png');
+    pushPng('dryFoliage', 'assets/minecraft/textures/colormap/dry_foliage.png');
+  }
+  const glintData = await readStudioData(projectId, 'glint');
+  if (glintData && typeof glintData === 'object') {
+    const g = glintData as Record<string, unknown>;
+    const files = Array.isArray(g.files) ? (g.files as StudioFile[]) : [];
+    for (const f of files) {
+      if (!f || typeof f.path !== 'string') continue;
+      if (typeof f.dataUrl === 'string' && f.dataUrl) {
+        const buf = dataUrlToBuffer(f.dataUrl);
+        if (buf) studioAssets.push({ name: f.path, buf });
+      } else if (typeof f.json === 'string') {
+        studioAssets.push({ name: f.path, json: f.json });
+      }
+    }
+  }
+
+  const studioNames = new Set(studioAssets.map((a) => a.name));
 
   const detailed = await listDetailed(projectId);
   // Level 0 = store-only (fastest). PNGs/JPGs are already compressed, so
@@ -657,15 +763,23 @@ export async function exportZipTo(
             continue;
           }
           const relPath = relBase ? `${relBase}/${f}` : f;
+          // Studio assets (glint sheets/models, biome colormaps) override any
+          // conflicting passthrough file (e.g. vanilla item models / glint png).
+          if (studioNames.has(relPath)) continue;
           // Edited textures/mcmetas are re-exported below; skip to avoid dupes.
           if (exportedTexturePaths.has(relPath)) continue;
           if (relPath === 'pack.mcmeta') {
             try {
               const parsed = JSON.parse(readFileSync(full, 'utf8'));
-              // Always stamp the correct pack format; a stale value (e.g. an
-              // old format 34 pack loaded into 1.21.11) causes MC to run its
-              // path "fixers" and break armor layers / drop netherite.
-              parsed.pack = { ...(parsed.pack ?? {}), pack_format: packFormat };
+              const base = parsed.pack ?? {};
+              delete base.supported_formats;
+              if (packFormat >= 65) {
+                // 1.21.9+ expects min/max range, not a single pack_format.
+                delete base.pack_format;
+                parsed.pack = { ...base, min_format: packFormat, max_format: 9999, description: base.description ?? description };
+              } else {
+                parsed.pack = { ...base, pack_format: packFormat, description: base.description ?? description };
+              }
               archive.append(JSON.stringify(parsed, null, 2), { name: 'pack.mcmeta' });
               packMcmetaWritten = true;
               continue;
@@ -686,7 +800,7 @@ export async function exportZipTo(
 
     if (!packMcmetaWritten) {
       archive.append(
-        JSON.stringify({ pack: { pack_format: packFormat, description } }, null, 2),
+        JSON.stringify({ pack: packSection(packFormat, description) }, null, 2),
         { name: 'pack.mcmeta' },
       );
     }
@@ -704,39 +818,91 @@ export async function exportZipTo(
 
       // Derive the real frame count from the PNG itself (robust to stale metadata).
       let pngFrameCount = t.frameCount;
+      let pngWidth = 0;
+      const raw = readFileSync(pngPath);
+      let pngBuffer: Buffer = raw;
+      let normalizedSize = 0; // >0 once non-square frames were padded to a square
       try {
-        const buf = readFileSync(pngPath);
-        const png = PNG.sync.read(buf);
+        const png = PNG.sync.read(raw);
+        pngWidth = png.width;
         const hintFH =
           t.animation && typeof t.animation.frameHeight === 'number' && t.animation.frameHeight > 0
             ? t.animation.frameHeight
             : undefined;
         const fh = hintFH ?? Math.max(1, png.width);
         pngFrameCount = Math.max(1, Math.round(png.height / fh));
+
+        // Auto-fix: pad non-square animation frames to a square so Minecraft
+        // does not stretch them into the square item/block display box.
+        if (opts?.normalizeFrames && pngFrameCount > 1 && pngWidth !== fh) {
+          const norm = normalizeStripToSquare(png, pngWidth, fh);
+          if (norm) {
+            pngBuffer = PNG.sync.write(norm.png);
+            normalizedSize = norm.size;
+            pngWidth = norm.size;
+          }
+        }
       } catch {
-        /* fall back to metadata value */
+        /* fall back to the raw buffer */
+        pngBuffer = raw;
       }
 
-      archive.file(pngPath, { name: `assets/minecraft/textures/${pngName}` });
+      archive.append(pngBuffer, { name: `assets/minecraft/textures/${pngName}` });
 
-      const metaPath = join(projectDir(projectId), 'textures', `${t.id}.meta.json`);
-      if (existsSync(metaPath) && (pngFrameCount > 1 || t.frameCount > 1)) {
-        try {
-          const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as TextureMetaInfo;
-          if (meta.animation) {
-            const mc = buildMcMcmeta(meta.animation);
-            if (mc) {
-              // Minecraft requires the mcmeta to be named `<texture>.png.mcmeta`.
-              archive.append(JSON.stringify(mc, null, 2), {
-                name: `assets/minecraft/textures/${pngName}.mcmeta`,
-              });
-            }
+      // Preserve animation: prefer the source pack's original .png.mcmeta verbatim
+      // (the editor re-encodes the strip and may not persist timing in meta.json),
+      // falling back to generated mcmeta from the project's stored animation data.
+      const mcmetaName = `assets/minecraft/textures/${pngName}.mcmeta`;
+      const origMc = join(passDir, 'assets/minecraft/textures', `${mcPath}.png.mcmeta`);
+      if (normalizedSize > 0) {
+        // Frames were padded to a square strip -> emit a matching mcmeta (the
+        // original mcmeta would describe the old, non-square frame height).
+        const size = normalizedSize;
+        const metaPath = join(projectDir(projectId), 'textures', `${t.id}.meta.json`);
+        let mc: { animation: Record<string, unknown> } | null = null;
+        if (existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as TextureMetaInfo;
+            if (meta.animation) mc = buildMcMcmeta({ ...meta.animation, frameHeight: size, frameWidth: size });
+          } catch {
+            /* fall through to synthetic */
           }
-        } catch {
-          // ignore malformed meta
         }
+        if (!mc) mc = { animation: { frametime: 2, height: size, width: size } };
+        archive.append(JSON.stringify(mc, null, 2), { name: mcmetaName });
+      } else if (existsSync(origMc)) {
+        archive.file(origMc, { name: mcmetaName });
+      } else if (pngFrameCount > 1) {
+        // Multi-frame strip with no source mcmeta: emit one so MC animates it
+        // instead of stretching the whole strip as a single static texture.
+        const metaPath = join(projectDir(projectId), 'textures', `${t.id}.meta.json`);
+        let mc: { animation: Record<string, unknown> } | null = null;
+        if (existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as TextureMetaInfo;
+            if (meta.animation) mc = buildMcMcmeta(meta.animation);
+          } catch {
+            /* fall through to synthetic */
+          }
+        }
+        if (!mc) {
+          const fh =
+            (t.animation && typeof t.animation.frameHeight === 'number' && t.animation.frameHeight > 0
+              ? t.animation.frameHeight
+              : undefined) ??
+            (typeof t.frameHeight === 'number' && t.frameHeight > 0 ? t.frameHeight : undefined) ??
+            Math.max(1, pngWidth);
+          mc = { animation: { frametime: 2, height: fh, width: pngWidth } };
+        }
+        archive.append(JSON.stringify(mc, null, 2), { name: mcmetaName });
       }
       textureCount++;
+    }
+
+    // Studios export real Minecraft assets (computed above, outside the promise).
+    for (const a of studioAssets) {
+      if (a.buf) archive.append(a.buf, { name: a.name });
+      else if (a.json) archive.append(a.json, { name: a.name });
     }
 
     void archive.finalize();

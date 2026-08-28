@@ -15,6 +15,7 @@ import { ShadePanel } from '../components/ShadePanel';
 import { RecolorPanel } from '../components/RecolorPanel';
 import { FadePanel } from '../components/FadePanel';
 import { ReplacePanel } from '../components/ReplacePanel';
+import { ShapePanel } from '../components/ShapePanel';
 import { FramesPanel } from '../components/FramesPanel';
 import { ActionGlyph, PixelIcon } from '../components/ActionGlyph';
 import { StampOverlay, type StampState } from '../components/StampOverlay';
@@ -47,6 +48,7 @@ import {
   fadePixels,
   replaceColor,
   transformPixels,
+  drawShape,
   type RescaleMode,
   type TransformOp,
 } from '../lib/canvas';
@@ -89,7 +91,7 @@ function toSync(t: SyncSource): CollabTextureSync {
 }
 
 // Tools that paint with the selected color (so we record it into Recent colors on stroke start)
-const PAINT_TOOLS = new Set<ToolId>(['pencil', 'spray', 'fill', 'gradient', 'shade']);
+const PAINT_TOOLS = new Set<ToolId>(['pencil', 'spray', 'fill', 'gradient', 'shade', 'shape']);
 
 const TOOLS: { id: ToolId; label: string; shortcut: string }[] = [
   { id: 'pencil', label: 'Pencil', shortcut: 'B' },
@@ -106,6 +108,7 @@ const TOOLS: { id: ToolId; label: string; shortcut: string }[] = [
   { id: 'spray', label: 'Spray', shortcut: 'A' },
   { id: 'fade', label: 'Fade', shortcut: '' },
   { id: 'replace', label: 'Replace', shortcut: '' },
+  { id: 'shape', label: 'Shape', shortcut: 'U' },
 ];
 
 type Handle = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
@@ -257,6 +260,7 @@ export function Editor(): JSX.Element {
   const pointer = useRef<PointerState>({ drawing: false, last: null, selMode: null });
   const gradientPathRef = useRef<Array<{ x: number; y: number }>>([]);
   const gradientDotsRef = useRef<Array<{ x: number; y: number }>>([]);
+  const shapeDragRef = useRef<{ start: { x: number; y: number }; current: { x: number; y: number } } | null>(null);
   const sprayTimerRef = useRef<number | null>(null);
   const sprayPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [tick, forceTick] = useState(0);
@@ -702,6 +706,7 @@ export function Editor(): JSX.Element {
           endStroke();
         }
         pointer.current.selMode = null;
+        shapeDragRef.current = null;
         return;
       }
 
@@ -878,6 +883,42 @@ export function Editor(): JSX.Element {
       } else if (tool === 'replace') {
         if (e.type === 'down') {
           applyReplace();
+        }
+      } else if (tool === 'shape') {
+        if (e.type === 'down') {
+          shapeDragRef.current = { start: e.pixel, current: e.pixel };
+          pointer.current.drawing = true;
+          beginStroke();
+          recordColor(primaryColorRef.current);
+          viewportRef.current?.repaint();
+        } else if (e.type === 'move' && pointer.current.drawing) {
+          if (shapeDragRef.current) {
+            shapeDragRef.current.current = e.pixel;
+            viewportRef.current?.repaint();
+          }
+        } else if (e.type === 'up' && pointer.current.drawing) {
+          pointer.current.drawing = false;
+          const drag = shapeDragRef.current;
+          shapeDragRef.current = null;
+          if (drag) {
+            const ui = useEditorUi.getState();
+            const pixels = new Uint8ClampedArray(texture.current);
+            const color = hexToTuple(primaryColorRef.current);
+            const rect = drawShape(pixels, texture.width, texture.height, {
+              x: drag.start.x,
+              y: drag.start.y,
+              w: drag.current.x - drag.start.x,
+              h: drag.current.y - drag.start.y,
+              shape: ui.shapeType,
+              fill: ui.shapeFill,
+              strokeW: ui.shapeStroke,
+              rotation: ui.shapeRotation,
+              color,
+            });
+            if (rect) applyStrokeEdit(pixels, rect);
+          }
+          endStroke();
+          viewportRef.current?.repaint();
         }
       } else if (tool === 'spray') {
         if (e.type === 'down') {
@@ -1461,6 +1502,7 @@ export function Editor(): JSX.Element {
         h: 'hand',
         m: 'select',
         s: 'shade',
+        u: 'shape',
       };
       const key = e.key.toLowerCase();
       if (map[key] && !cmd) {
@@ -1551,6 +1593,66 @@ export function Editor(): JSX.Element {
         for (const d of gradientDotsRef.current) {
           ctx.fillRect(d.x * scale, d.y * scale, scale, scale);
         }
+      }
+
+      // Live preview of the shape being dragged.
+      if (activeToolRef.current === 'shape' && shapeDragRef.current) {
+        const { start, current } = shapeDragRef.current;
+        const ui = useEditorUi.getState();
+        ctx.save();
+        ctx.strokeStyle = 'rgba(108, 240, 214, 0.95)';
+        ctx.fillStyle = 'rgba(108, 240, 214, 0.3)';
+        if (ui.shapeType === 'line') {
+          ctx.lineWidth = Math.max(1, ui.shapeStroke) * scale;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(start.x * scale + scale / 2, start.y * scale + scale / 2);
+          ctx.lineTo(current.x * scale + scale / 2, current.y * scale + scale / 2);
+          ctx.stroke();
+        } else {
+          const cx = ((start.x + current.x) / 2 + 0.5) * scale;
+          const cy = ((start.y + current.y) / 2 + 0.5) * scale;
+          const rx = (Math.abs(current.x - start.x) * scale) / 2;
+          const ry = (Math.abs(current.y - start.y) * scale) / 2;
+          ctx.translate(cx, cy);
+          ctx.rotate((-ui.shapeRotation * Math.PI) / 180);
+          ctx.beginPath();
+          if (ui.shapeType === 'rectangle') {
+            ctx.rect(-rx, -ry, rx * 2, ry * 2);
+          } else if (ui.shapeType === 'ellipse') {
+            ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+          } else {
+            const verts: Array<[number, number]> = [];
+            if (ui.shapeType === 'triangle') {
+              verts.push([0, -ry], [-rx, ry], [rx, ry]);
+            } else if (ui.shapeType === 'polygon') {
+              const n = 6;
+              for (let i = 0; i < n; i++) {
+                const t = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+                verts.push([rx * Math.cos(t), ry * Math.sin(t)]);
+              }
+            } else if (ui.shapeType === 'star') {
+              const n = 5;
+              for (let i = 0; i < n * 2; i++) {
+                const t = -Math.PI / 2 + (i * Math.PI) / n;
+                const rad = i % 2 === 0 ? 1 : 0.45;
+                verts.push([rx * rad * Math.cos(t), ry * rad * Math.sin(t)]);
+              }
+            }
+            ctx.moveTo(verts[0][0], verts[0][1]);
+            for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i][0], verts[i][1]);
+            ctx.closePath();
+          }
+          if (ui.shapeFill) {
+            ctx.fill();
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          } else {
+            ctx.lineWidth = Math.max(1, ui.shapeStroke) * scale;
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
       }
 
       if (sel) {
@@ -1766,6 +1868,9 @@ export function Editor(): JSX.Element {
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/bulk`)}>
             Bulk Edit
           </Button>
+          <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/biome`)}>
+            Biome Tint
+          </Button>
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/export`)}>
             Import / Export
           </Button>
@@ -1852,6 +1957,7 @@ export function Editor(): JSX.Element {
               <InfoItem name="Hand (H)" desc="Pan around the canvas. Right-click also pans." />
               <InfoItem name="Select (M)" desc="Select a rectangle to edit, move, copy, or fill only that area. Drag the handles to resize." />
             <InfoItem name="Shade (S)" desc="Lighten, darken, tint, or fade the pixels under the brush." />
+            <InfoItem name="Shape (U)" desc="Draw rectangles, ellipses, lines, triangles, polygons, or stars. Toggle filled vs. outline, set the stroke thickness and rotation in the Shape panel (sidebar). Drag on the canvas to size the shape." />
             <InfoItem name="Spray (A)" desc="Scatter pixels of the primary color with controllable density, falloff, and opacity. Hold and drag to keep spraying." />
             <InfoItem name="Fade" desc="Soft eraser — gradually removes opacity under the brush. Strength controls how much is erased per pass; Softness feathers the edges." />
             <InfoItem name="Replace" desc="Replace every pixel matching the From color (within Tolerance, across all RGBA channels) with the To color, over the whole texture or current selection. Pick From/To in the sidebar." />
@@ -2201,6 +2307,13 @@ export function Editor(): JSX.Element {
           </div>
         )}
 
+        {activeTool === 'shape' && (
+          <div className="panel">
+            <h4 className="panel-title">Shape</h4>
+            <ShapePanel />
+          </div>
+        )}
+
         {activeTool === 'replace' && (
           <div className="panel">
             <h4 className="panel-title">Replace color</h4>
@@ -2484,6 +2597,7 @@ import smushIcon from '../assets/tools/smush.png';
 import shadeIcon from '../assets/tools/shade.png';
 import stampIcon from '../assets/tools/stamp.png';
 import recolorIcon from '../assets/tools/recolor.png';
+import starIcon from '../assets/tools/star.png';
 
 const TOOL_ICON_URLS: Partial<Record<ToolId, string>> = {
   pencil: pencilIcon,
@@ -2497,6 +2611,7 @@ const TOOL_ICON_URLS: Partial<Record<ToolId, string>> = {
   shade: shadeIcon,
   stamp: stampIcon,
   recolor: recolorIcon,
+  shape: starIcon,
 };
 
 function ToolIcon({ id }: { id: ToolId }): JSX.Element {

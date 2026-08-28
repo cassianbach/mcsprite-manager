@@ -2,16 +2,7 @@
   min-height: 100%;
   padding: var(--space-5);
   color: var(--fg-0);
-  background-color: var(--bg-0);
-  background-image:
-    linear-gradient(
-      color-mix(in srgb, var(--bg-0) 70%, transparent),
-      color-mix(in srgb, var(--bg-0) 70%, transparent)
-    ),
-    url('../assets/dirt-bg.png');
-  background-size: cover, 220px 220px;
-  background-repeat: no-repeat, repeat;
-  background-position: center, center;
+  background: transparent;
 }
 
 .catalog-header {

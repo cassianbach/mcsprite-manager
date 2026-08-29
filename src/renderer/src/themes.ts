@@ -1,5 +1,18 @@
 import type { ThemeName, ThemeTokens } from '@shared/types';
 
+import galaxyBg from './assets/backgrounds/galaxy.png';
+import midnightBg from './assets/backgrounds/midnight.png';
+import forestBg from './assets/backgrounds/forest.png';
+import aquamarineBg from './assets/backgrounds/aquamarine.png';
+import desertBg from './assets/backgrounds/desert.png';
+import creamBg from './assets/backgrounds/cream.png';
+import oceanBg from './assets/backgrounds/ocean.png';
+import sunsetBg from './assets/backgrounds/sunset.png';
+import solarizedBg from './assets/backgrounds/solarized.png';
+import monoBg from './assets/backgrounds/mono.png';
+import darkBg from './assets/backgrounds/dark.png';
+import lightBg from './assets/backgrounds/light.png';
+
 export interface ThemeMeta {
   name: ThemeName;
   label: string;
@@ -20,6 +33,27 @@ export const THEME_LIST: ThemeMeta[] = [
   { name: 'mono', label: 'Mono' },
   { name: 'custom', label: 'Custom' },
 ];
+
+/**
+ * Default background image per preset. When the user hasn't set a custom
+ * background image in Settings, the active preset's image is shown behind the
+ * app (galaxy → starfield, midnight → stars, forest → foliage, ocean → waves,
+ * sunset → sun glow, etc.). A user-set custom background always wins.
+ */
+export const PRESET_BACKGROUNDS: Partial<Record<ThemeName, string>> = {
+  dark: darkBg,
+  light: lightBg,
+  galaxy: galaxyBg,
+  midnight: midnightBg,
+  forest: forestBg,
+  aquamarine: aquamarineBg,
+  desert: desertBg,
+  cream: creamBg,
+  ocean: oceanBg,
+  sunset: sunsetBg,
+  solarized: solarizedBg,
+  mono: monoBg,
+};
 
 const dark: ThemeTokens = {
   'bg-0': '#0b0d10',

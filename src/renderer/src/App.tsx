@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { Shell } from './components/Shell';
 import { ProjectBrowser } from './pages/ProjectBrowser';
 import { Editor } from './pages/Editor';
+import { PRESET_BACKGROUNDS } from './themes';
 import { Catalog } from './pages/Catalog';
 import { BulkEdit } from './pages/BulkEdit';
 import { ImportExport } from './pages/ImportExport';
@@ -58,7 +59,13 @@ export function App(): JSX.Element {
       for (const k of Object.keys(customTokens)) root.style.removeProperty(`--${k}`);
     }
     if (!backgroundImage) {
-      root.style.setProperty('--app-bg-image', 'none');
+      // Fall back to the active preset's default background image (e.g. galaxy
+      // → starfield, midnight → stars, forest → foliage). The user's custom
+      // background always wins when it is set.
+      const presetBg = PRESET_BACKGROUNDS[theme];
+      root.style.setProperty('--app-bg-image', presetBg ? `url("${presetBg}")` : 'none');
+      root.style.setProperty('--app-bg-size', 'cover');
+      root.style.setProperty('--app-bg-pos', 'center');
       return;
     }
     const img = backgroundImage.startsWith('data:')
@@ -92,9 +99,9 @@ export function App(): JSX.Element {
         <Route path="/project/:id/catalog" element={<Catalog />} />
         <Route path="/project/:id/bulk" element={<BulkEdit />} />
   <Route path="/project/:id/export" element={<ImportExport />} />
-  <Route path="/project/:id/glint" element={<GlintStudio />} />
-  <Route path="/project/:id/biome" element={<BiomeTintStudio />} />
-  <Route path="/uploaded" element={<UploadedCatalog />} />
+        <Route path="/project/:id/glint" element={<GlintStudio />} />
+        <Route path="/project/:id/biome" element={<BiomeTintStudio />} />
+        <Route path="/uploaded" element={<UploadedCatalog />} />
         <Route path="/collab" element={<CollabLanding />} />
         <Route path="*" element={<Navigate to="/projects" replace />} />
       </Routes>

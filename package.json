@@ -1,6 +1,6 @@
 {
   "name": "mcsprite-manager",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "MCsprite Manager — a Minecraft texture & sprite editor with a library of theme presets (each with its own background — galaxy starfield, midnight stars, forest foliage, ocean waves, sunset glow, etc.), per-biome tinting for grass and foliage colormaps, and a shape tool (rectangle, ellipse, line, polygon, and star) with fill/outline and rotation. Also includes a community catalogue, version switcher, and animation tools.",
   "main": "out/main/index.js",
   "author": "You",

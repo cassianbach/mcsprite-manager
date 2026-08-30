@@ -153,6 +153,8 @@ export interface AppSettings {
   activeMode: 'texture';
   activeProjectId: string | null;
   shortcuts: Record<string, string>;
+  /** UI language code. Defaults to 'en'. */
+  language?: string;
 }
 
 /** Persisted animation metadata (mirrors a Minecraft *.mcmeta animation block). */
@@ -327,6 +329,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   activeMode: 'texture',
   activeProjectId: null,
   shortcuts: {},
+  language: 'en',
 };
 
 export const IPC = {

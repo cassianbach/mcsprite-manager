@@ -32,6 +32,7 @@ export const useSettings = create<AppSettings>()(
       activeMode: 'texture',
       activeProjectId: null,
       shortcuts: {},
+      language: 'en',
     }),
     {
       name: STORAGE_KEY,
@@ -68,3 +69,6 @@ export const setActiveMode = (mode: AppSettings['activeMode']) =>
 
 export const setActiveProject = (id: string | null) =>
   useSettings.setState({ activeProjectId: id });
+
+export const setLanguage = (language: AppSettings['language']) =>
+  useSettings.setState({ language });

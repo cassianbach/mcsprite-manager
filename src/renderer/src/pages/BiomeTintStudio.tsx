@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useStudio } from '../store/studio';
 import { DEFAULT_BIOMES, generateBiomeColormaps, type BiomeDef } from '../lib/biome';
+import { useTranslate, translateLabelWith } from '../i18n';
+import { useSettings } from '../store/settings';
 import './Studio.css';
 
 type MapKey = 'grass' | 'foliage' | 'dryFoliage';
@@ -171,6 +173,8 @@ function Section(props: {
 }
 
 export default function BiomeTintStudio() {
+  const t = useTranslate();
+  const lang = useSettings((s) => s.language ?? 'en');
   const { id: projectId = '' } = useParams();
   const studio = useStudio<{
     biomes: BiomeDef[];
@@ -333,13 +337,13 @@ export default function BiomeTintStudio() {
           </div>
         </Section>
 
-        <Section title="Saved presets" defaultOpen={false}>
+        <Section title={t('biome.section.savedPresets')} defaultOpen={false}>
           <p className="hint" style={{ marginTop: 0 }}>
-            Save a set of biome tints to reuse it later.
+            {t('biome.savedPresetsHint')}
           </p>
           <div className="pill-row">
             <button className="pill" disabled>
-              + Save preset
+              {t('biome.savePreset')}
             </button>
           </div>
         </Section>
@@ -362,13 +366,13 @@ export default function BiomeTintStudio() {
       <section className="studio-main">
         <header className="studio-head">
           <div>
-            <h2>Biome Tint Lab</h2>
+            <h2>{t('biome.labTitle')}</h2>
             <p className="lab-sub">{current.label}</p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <div className="seg small">
-              <button className="seg-btn active">Java</button>
-              <button className="seg-btn">Bedrock</button>
+              <button className="seg-btn active">{t('biome.platform.java')}</button>
+              <button className="seg-btn">{t('biome.platform.bedrock')}</button>
             </div>
             <button className="pill ghost" title="Open in pixel editor">
               Open in editor
@@ -383,11 +387,11 @@ export default function BiomeTintStudio() {
               className={`tab ${mapKey === k ? 'active' : ''}`}
               onClick={() => setMapKey(k)}
             >
-              {MAP_LABELS[k]}.png
+              {translateLabelWith(lang, 'biomeMap', k, MAP_LABELS[k])}.png
               {mapKey === k && (
                 <span
                   className="reset"
-                  title="Reset"
+                  title={t('biome.resetTitle')}
                   onClick={(e) => {
                     e.stopPropagation();
                     resetBiome();
@@ -402,7 +406,7 @@ export default function BiomeTintStudio() {
 
         <div className="studio-cols">
           <div className="panel">
-            <div className="panel-title">{MAP_LABELS[mapKey]}.png colormap</div>
+            <div className="panel-title">{t('biome.colormapTitle', { name: translateLabelWith(lang, 'biomeMap', mapKey, MAP_LABELS[mapKey]) })}</div>
             <canvas ref={canvasRef} width={256} height={256} className="colormap-canvas" />
             <div className="hint">
               {current.label} · temp {current.temperature} · downfall {current.downfall}
@@ -416,9 +420,9 @@ export default function BiomeTintStudio() {
               <code>{current[mapKey]}</code>
             </div>
             <label className="slider-row">
-              <span>Hue</span>
+              <span>{t('biome.hue')}</span>
               <input type="range" min={0} max={360} value={h} onChange={(e) => onHsl(0, Number(e.target.value))} />
-              <em className="val">{Math.round(h)}°</em>
+              <em className="val">{t('biome.hueValue', { n: Math.round(h) })}</em>
             </label>
             <label className="slider-row">
               <span>Sat</span>
@@ -440,13 +444,13 @@ export default function BiomeTintStudio() {
             </label>
             <div className="pill-row">
               <button className="pill" onClick={resetBiome}>
-                Reset biome
+                {t('biome.resetBiome')}
               </button>
               <button className="pill" onClick={resetAll}>
-                Reset all
+                {t('biome.resetAll')}
               </button>
               <button className="pill primary" onClick={save}>
-                Save changes
+                {t('biome.saveChanges')}
               </button>
             </div>
           </div>

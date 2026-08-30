@@ -3,6 +3,7 @@ import { useEditorUi, setRecolor, resetRecolor } from '../store/editor';
 import { useProject } from '../store/project';
 import { recolorPixels } from '../lib/canvas';
 import { Button } from './Button';
+import { useTranslate } from '../i18n';
 import './AdvancedPanels.css';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function RecolorPanel({ onApply }: Props): JSX.Element {
+  const t = useTranslate();
   const recolor = useEditorUi((s) => s.recolor);
   const texture = useProject((s) => s.texture);
   const previewRef = useRef<HTMLCanvasElement>(null);
@@ -28,11 +30,10 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
   }, [texture, recolor]);
 
   useEffect(() => {
-    // previewDataUrl computed above is sufficient
     void previewRef;
   }, [previewDataUrl]);
 
-  if (!texture) return <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>No texture</p>;
+  if (!texture) return <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>{t('recolor.noTexture')}</p>;
 
   const isDirty =
     recolor.hue !== 0 ||
@@ -46,8 +47,8 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
     <div className="recolor-panel">
       <div className="slider-row">
         <label>
-          <span>Hue</span>
-          <span>{recolor.hue}°</span>
+          <span>{t('recolor.hue')}</span>
+          <span>{t('recolor.hueValue', { n: recolor.hue })}</span>
         </label>
         <input
           type="range"
@@ -66,8 +67,8 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
       </div>
       <div className="slider-row">
         <label>
-          <span>Saturation</span>
-          <span>{recolor.saturation}%</span>
+          <span>{t('recolor.saturation')}</span>
+          <span>{t('recolor.saturationValue', { n: recolor.saturation })}</span>
         </label>
         <input
           type="range"
@@ -86,8 +87,8 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
       </div>
       <div className="slider-row">
         <label>
-          <span>Brightness</span>
-          <span>{recolor.brightness}%</span>
+          <span>{t('recolor.brightness')}</span>
+          <span>{t('recolor.brightnessValue', { n: recolor.brightness })}</span>
         </label>
         <input
           type="range"
@@ -106,8 +107,8 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
       </div>
       <div className="slider-row">
         <label>
-          <span>Contrast</span>
-          <span>{recolor.contrast}%</span>
+          <span>{t('recolor.contrast')}</span>
+          <span>{t('recolor.contrastValue', { n: recolor.contrast })}</span>
         </label>
         <input
           type="range"
@@ -130,13 +131,13 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
           className={'recolor-toggle' + (recolor.invert ? ' active' : '')}
           onClick={() => setRecolor({ invert: !recolor.invert })}
         >
-          Invert
+          {t('recolor.invert')}
         </button>
         <button
           className={'recolor-toggle' + (recolor.grayscale ? ' active' : '')}
           onClick={() => setRecolor({ grayscale: !recolor.grayscale })}
         >
-          Grayscale
+          {t('recolor.grayscale')}
         </button>
       </div>
 
@@ -151,10 +152,10 @@ export function RecolorPanel({ onApply }: Props): JSX.Element {
 
       <div className="apply-row">
         <Button variant="ghost" onClick={resetRecolor} disabled={!isDirty}>
-          Reset
+          {t('recolor.reset')}
         </Button>
         <Button variant="primary" onClick={onApply} disabled={!isDirty}>
-          Apply
+          {t('recolor.apply')}
         </Button>
       </div>
     </div>

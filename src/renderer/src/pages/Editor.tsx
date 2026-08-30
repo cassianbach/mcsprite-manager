@@ -22,6 +22,8 @@ import { StampOverlay, type StampState } from '../components/StampOverlay';
 import { encodeFramesToGif, encodeFramesToStripPng, downloadBytes } from '../lib/gif';
 import { collab, takePendingJoin } from '../collab/collabClient';
 import type { Peer } from '@shared/types';
+import { useTranslate, translateLabelWith } from '../i18n';
+import { useSettings } from '../store/settings';
 import {
   bresenhamLine,
   clearRect,
@@ -169,6 +171,8 @@ function pixelInsideRect(
 }
 
 export function Editor(): JSX.Element {
+  const t = useTranslate();
+  const lang = useSettings((s) => s.language ?? 'en');
   const { id } = useParams();
   const navigate = useNavigate();
   const projectId = id ?? '';
@@ -1719,8 +1723,8 @@ export function Editor(): JSX.Element {
   if (!projectId) {
     return (
       <div className="empty-state">
-        <h2>No project selected</h2>
-        <Link to="/projects">Back to projects</Link>
+        <h2>{t('editor.empty.noProject')}</h2>
+        <Link to="/projects">{t('editor.backToProjects')}</Link>
       </div>
     );
   }
@@ -1859,29 +1863,29 @@ export function Editor(): JSX.Element {
           onClick={() => saveNow()}
           disabled={!texture || save.status === 'saving'}
         >
-          {save.status === 'saving' ? 'Saving…' : 'Save'}
+          {save.status === 'saving' ? t('editor.saving') : t('editor.save')}
         </Button>
         <div style={{ marginLeft: 'auto' }}>
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/catalog`)}>
-            Catalog
+            {t('editor.nav.catalog')}
           </Button>
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/bulk`)}>
-            Bulk Edit
+            {t('editor.nav.bulk')}
           </Button>
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/biome`)}>
-            Biome Tint
+            {t('editor.nav.biome')}
           </Button>
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/export`)}>
-            Import / Export
+            {t('editor.nav.importExport')}
           </Button>
-          <Button variant="ghost" onClick={() => setInfoOpen(true)} title="Help — what each tool does">
-            Info
+          <Button variant="ghost" onClick={() => setInfoOpen(true)} title={t('editor.info.title')}>
+            {t('editor.nav.info')}
           </Button>
           <Button variant="ghost" onClick={() => setSheetOpen(true)} disabled={!texture}>
-            Sprite sheet
+            {t('editor.nav.spriteSheet')}
           </Button>
           <Button variant="ghost" onClick={() => navigate('/projects')}>
-            ← Projects
+            {t('editor.nav.projects')}
           </Button>
         </div>
       </div>
@@ -1946,32 +1950,32 @@ export function Editor(): JSX.Element {
       {infoOpen && (
         <div className="modal-overlay" onClick={() => setInfoOpen(false)}>
           <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
-            <h3>Tools</h3>
+            <h3>{t('editor.info.title')}</h3>
             <div className="info-grid">
-              <InfoItem name="Pencil (B)" desc="Paint with the primary color. Hold Shift to draw straight lines. Brush size is in the sidebar." />
-              <InfoItem name="Eraser (E)" desc="Erase pixels to transparent. Hold Shift for straight erases." />
-              <InfoItem name="Fill (G)" desc="Flood-fill a connected area with the primary color." />
-              <InfoItem name="Gradient (V)" desc="Fade from primary to secondary color. Curve traces your stroke; Rectangle fills the selection; Point radiates from a click; Dots paints only individually-clicked pixels (press Enter to apply). Direction can follow start→finish or a chosen Angle. Thickness sets the stroke width." />
-              <InfoItem name="Smush (N)" desc="Smear/blend pixels like wet paint. Drag to mix neighboring colors." />
-              <InfoItem name="Eyedropper (I)" desc="Pick a color from the canvas into the primary color." />
-              <InfoItem name="Hand (H)" desc="Pan around the canvas. Right-click also pans." />
-              <InfoItem name="Select (M)" desc="Select a rectangle to edit, move, copy, or fill only that area. Drag the handles to resize." />
-            <InfoItem name="Shade (S)" desc="Lighten, darken, tint, or fade the pixels under the brush." />
-            <InfoItem name="Shape (U)" desc="Draw rectangles, ellipses, lines, triangles, polygons, or stars. Toggle filled vs. outline, set the stroke thickness and rotation in the Shape panel (sidebar). Drag on the canvas to size the shape." />
-            <InfoItem name="Spray (A)" desc="Scatter pixels of the primary color with controllable density, falloff, and opacity. Hold and drag to keep spraying." />
-            <InfoItem name="Fade" desc="Soft eraser — gradually removes opacity under the brush. Strength controls how much is erased per pass; Softness feathers the edges." />
-            <InfoItem name="Replace" desc="Replace every pixel matching the From color (within Tolerance, across all RGBA channels) with the To color, over the whole texture or current selection. Pick From/To in the sidebar." />
-            <InfoItem name="Stamp" desc="Paste a copied image repeatedly, with rotation and scaling." />
-            <InfoItem name="Recolor" desc="Adjust hue, saturation, brightness, and contrast, or invert/grayscale, with a live preview." />
-            <InfoItem name="Recent colors" desc="The sidebar keeps your last 10 colors — recorded when you pick, eyedrop, or paint a color, or set Replace From/To. Click a swatch to use it as the tool's color (From color when Replace is active), or right-click for the secondary color (To). Collapse the panel with the arrow. Colors are only added when you release the wheel, not while dragging." />
+              <InfoItem name={t('editor.info.pencil')} desc={t('editor.info.pencilDesc')} />
+              <InfoItem name={t('editor.info.eraser')} desc={t('editor.info.eraserDesc')} />
+              <InfoItem name={t('editor.info.fill')} desc={t('editor.info.fillDesc')} />
+              <InfoItem name={t('editor.info.gradient')} desc={t('editor.info.gradientDesc')} />
+              <InfoItem name={t('editor.info.smush')} desc={t('editor.info.smushDesc')} />
+              <InfoItem name={t('editor.info.eyedropper')} desc={t('editor.info.eyedropperDesc')} />
+              <InfoItem name={t('editor.info.hand')} desc={t('editor.info.handDesc')} />
+              <InfoItem name={t('editor.info.select')} desc={t('editor.info.selectDesc')} />
+              <InfoItem name={t('editor.info.shade')} desc={t('editor.info.shadeDesc')} />
+              <InfoItem name={t('editor.info.shape')} desc={t('editor.info.shapeDesc')} />
+              <InfoItem name={t('editor.info.spray')} desc={t('editor.info.sprayDesc')} />
+              <InfoItem name={t('editor.info.fade')} desc={t('editor.info.fadeDesc')} />
+              <InfoItem name={t('editor.info.replace')} desc={t('editor.info.replaceDesc')} />
+              <InfoItem name={t('editor.info.stamp')} desc={t('editor.info.stampDesc')} />
+              <InfoItem name={t('editor.info.recolor')} desc={t('editor.info.recolorDesc')} />
+              <InfoItem name={t('editor.info.recent')} desc={t('editor.info.recentDesc')} />
             </div>
             <div className="info-shortcuts">
-              <h4>Shortcuts</h4>
-              <span>Ctrl+Z undo · Ctrl+Shift+Z redo · Ctrl+C copy · Ctrl+V paste · Ctrl+wheel zoom · Ctrl+` grid</span>
+              <h4>{t('editor.info.shortcuts')}</h4>
+              <span>{t('editor.info.shortcutsList')}</span>
             </div>
             <div className="modal-actions">
               <Button variant="primary" onClick={() => setInfoOpen(false)}>
-                Close
+                {t('common.close')}
               </Button>
             </div>
           </div>
@@ -2009,8 +2013,8 @@ export function Editor(): JSX.Element {
         )}
         {!texture && (
           <div className="empty-state">
-            <h2>No texture loaded</h2>
-            <p>The project is empty. Create a new texture above.</p>
+            <h2>{t('editor.canvas.empty.title')}</h2>
+            <p>{t('editor.canvas.empty.body')}</p>
           </div>
         )}
       </div>
@@ -2408,11 +2412,11 @@ export function Editor(): JSX.Element {
       <div className="statusbar">
         <span>
           <span className={'status-dot ' + save.status} />
-          {labelForSave(save.status)}
-          {cursorPos ? ` · ${cursorPos.x}, ${cursorPos.y}` : ''}
+          {labelForSave(save.status, t as any)}
+          {cursorPos ? t('editor.statusBarCursor', { x: cursorPos.x, y: cursorPos.y }) : ''}
         </span>
         <span>
-          {texture ? texture.name : '—'} · project {shorten(projectId)}
+          {texture ? t('editor.statusBar', { texture: texture.name, project: shorten(projectId) }) : '—'}
         </span>
       </div>
 
@@ -3157,18 +3161,18 @@ function RedoIcon(): JSX.Element {
   );
 }
 
-function labelForSave(status: 'idle' | 'dirty' | 'saving' | 'saved' | 'error'): string {
+function labelForSave(status: 'idle' | 'dirty' | 'saving' | 'saved' | 'error', t: (key: any) => string): string {
   switch (status) {
     case 'idle':
-      return 'No changes';
+      return t('editor.saveStatus.idle');
     case 'dirty':
-      return 'Unsaved';
+      return t('editor.saveStatus.dirty');
     case 'saving':
-      return 'Saving…';
+      return t('editor.saveStatus.saving');
     case 'saved':
-      return 'Saved';
+      return t('editor.saveStatus.saved');
     case 'error':
-      return 'Save failed';
+      return t('editor.saveStatus.error');
     default: {
       const _exhaustive: never = status;
       return _exhaustive;

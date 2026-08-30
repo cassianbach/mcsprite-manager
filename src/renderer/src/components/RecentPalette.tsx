@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useEditorUi, recordColor, setPrimaryColor, setSecondaryColor, setReplaceFrom, setReplaceTo } from '../store/editor';
+import { useTranslate } from '../i18n';
 import './AdvancedPanels.css';
 
 export function RecentPalette(): JSX.Element {
+  const t = useTranslate();
   const recent = useEditorUi((s) => s.recentColors);
   const activeTool = useEditorUi((s) => s.activeTool);
   const [expanded, setExpanded] = useState(false);
@@ -25,7 +27,7 @@ export function RecentPalette(): JSX.Element {
 
   const body =
     shown.length === 0 ? (
-      <div className="recent-empty">No colors yet — pick, eyedrop, or paint a color to start.</div>
+      <div className="recent-empty">{t('recent.empty')}</div>
     ) : (
       <div className="recent-palette">
         {shown.map((c, i) => (
@@ -34,9 +36,11 @@ export function RecentPalette(): JSX.Element {
             type="button"
             className="recent-swatch"
             style={{ background: c }}
-            title={`${c} — click: ${activeTool === 'replace' ? 'From' : 'primary'}, right-click: ${
-              activeTool === 'replace' ? 'To' : 'secondary'
-            }`}
+            title={t('recent.swatchTitle', {
+              color: c,
+              primary: activeTool === 'replace' ? t('recent.fromLabel') : t('recent.primaryLabel'),
+              secondary: activeTool === 'replace' ? t('recent.toLabel') : t('recent.secondaryLabel'),
+            })}
             onClick={() => applyColor(c, false)}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -50,13 +54,13 @@ export function RecentPalette(): JSX.Element {
   return (
     <div className="panel">
       <div className="panel-title-row">
-        <h4 className="panel-title">Recent colors</h4>
+        <h4 className="panel-title">{t('recent.title')}</h4>
         <button
           type="button"
           className="panel-toggle"
           onClick={() => setExpanded((v) => !v)}
-          title={expanded ? 'Show only 10' : 'Show all colors'}
-          aria-label={expanded ? 'Show only 10' : 'Show all colors'}
+          title={t('recent.collapseToggle')}
+          aria-label={t('recent.collapseToggle')}
         >
           {expanded ? '▾' : '▸'}
         </button>

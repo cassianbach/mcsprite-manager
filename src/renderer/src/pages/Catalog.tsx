@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { useTranslate } from '../i18n';
 import './Catalog.css';
 
 interface VanillaTexture {
@@ -12,6 +13,7 @@ interface VanillaTexture {
 const MAX_VISIBLE = 300;
 
 export function Catalog(): JSX.Element {
+  const t = useTranslate();
   const { id: projectId = '' } = useParams();
   const navigate = useNavigate();
   const [textures, setTextures] = useState<VanillaTexture[] | null>(null);
@@ -55,13 +57,13 @@ export function Catalog(): JSX.Element {
 
   const visible = filtered.slice(0, MAX_VISIBLE);
 
-  async function handleAdd(t: VanillaTexture) {
+  async function handleAdd(tex: VanillaTexture) {
     if (busy) return;
-    setBusy(t.id);
+    setBusy(tex.id);
     try {
-      const res = await window.api.textures.addVanilla(projectId, t.id);
+      const res = await window.api.textures.addVanilla(projectId, tex.id);
       if (res.id) {
-        setAdded((prev) => new Set(prev).add(t.id));
+        setAdded((prev) => new Set(prev).add(tex.id));
       }
     } finally {
       setBusy(null);
@@ -72,36 +74,31 @@ export function Catalog(): JSX.Element {
     <div className="catalog">
       <div className="catalog-header">
         <Link className="btn-ghost" to={`/project/${projectId}`}>
-          ← Editor
+          {t('catalog.backToEditor')}
         </Link>
         <div className="catalog-title">
-          <h1>Vanilla Catalog</h1>
-          {version && <span className="catalog-version">MC {version}</span>}
+          <h1>{t('catalog.title')}</h1>
+          {version && <span className="catalog-version">{t('catalog.version', { version })}</span>}
         </div>
         <div className="catalog-header-spacer" />
         <Button variant="primary" onClick={() => navigate(`/project/${projectId}`)}>
-          Done
+          {t('catalog.done')}
         </Button>
       </div>
 
       {textures === null ? (
         <div className="catalog-empty">
-          <h2>No vanilla textures bundled</h2>
-          <p>
-            The catalog reads Minecraft assets from <code>resources/vanilla/</code>, which is populated by the
-            build-time sync script. Run it once (requires internet) to download the latest client:
-          </p>
-          <pre className="catalog-cmd">npm run sync:vanilla</pre>
-          <p className="catalog-hint">
-            After it finishes, restart the app and reopen this page.
-          </p>
+          <h2>{t('catalog.empty.title')}</h2>
+          <p>{t('catalog.empty.body')}</p>
+          <pre className="catalog-cmd">{t('catalog.empty.cmd')}</pre>
+          <p className="catalog-hint">{t('catalog.empty.hint')}</p>
         </div>
       ) : (
         <>
           <div className="catalog-controls">
             <input
               className="catalog-search"
-              placeholder="Search textures (e.g. grass, diamond, gui)…"
+              placeholder={t('catalog.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -110,7 +107,7 @@ export function Catalog(): JSX.Element {
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
-              <option value="all">All categories ({textures.length})</option>
+              <option value="all">{t('catalog.allCategories', { n: textures.length })}</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -120,32 +117,31 @@ export function Catalog(): JSX.Element {
           </div>
 
           <div className="catalog-count">
-            {filtered.length} texture{filtered.length === 1 ? '' : 's'}
-            {filtered.length > MAX_VISIBLE && ` — showing first ${MAX_VISIBLE}, refine search`}
-            {added.size > 0 && ` · ${added.size} added`}
+            {t('catalog.count', { n: filtered.length, max: MAX_VISIBLE })}
+            {added.size > 0 && t('catalog.addedCount', { n: added.size })}
           </div>
 
           <div className="catalog-grid">
-            {visible.map((t) => {
-              const name = t.id.split('/').pop() || t.id;
-              const isAdded = added.has(t.id);
+            {visible.map((tex) => {
+              const name = tex.id.split('/').pop() || tex.id;
+              const isAdded = added.has(tex.id);
               return (
-                <div key={t.id} className="catalog-card">
+                <div key={tex.id} className="catalog-card">
                   <div className="catalog-thumb-wrap">
-                    <VanillaThumb id={t.id} />
+                    <VanillaThumb id={tex.id} />
                   </div>
                   <div className="catalog-text">
-                    <div className="catalog-name" title={t.id}>
+                    <div className="catalog-name" title={tex.id}>
                       {name}
                     </div>
-                    <div className="catalog-path">{t.category}</div>
+                    <div className="catalog-path">{tex.category}</div>
                   </div>
                   <button
                     className={'btn-primary catalog-add' + (isAdded ? ' added' : '')}
                     disabled={busy !== null || isAdded}
-                    onClick={() => handleAdd(t)}
+                    onClick={() => handleAdd(tex)}
                   >
-                    {isAdded ? 'Added ✓' : busy === t.id ? 'Adding…' : 'Add'}
+                    {isAdded ? t('catalog.added') : busy === tex.id ? t('catalog.adding') : t('catalog.add')}
                   </button>
                 </div>
               );

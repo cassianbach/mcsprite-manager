@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Logo } from '../components/Logo';
+import { useTranslate, translateLabelWith } from '../i18n';
+import { useSettings } from '../store/settings';
 import type { ProjectListEntry } from '@shared/types';
 import './ProjectBrowser.css';
 
 type Filter = 'all' | 'mc' | 'sprite' | 'modified';
 
 export function ProjectBrowser(): JSX.Element {
+  const t = useTranslate();
+  const lang = useSettings((s) => s.language ?? 'en');
   const [projects, setProjects] = useState<ProjectListEntry[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
   const [modifiedOnly, setModifiedOnly] = useState(false);
@@ -46,7 +50,7 @@ export function ProjectBrowser(): JSX.Element {
   }
 
   async function handleDelete(id: string, name: string): Promise<void> {
-    if (!confirm(`Delete project "${name}"? This cannot be undone.`)) return;
+    if (!confirm(t('projects.deleteConfirm', { name }))) return;
     await window.api.projects.delete(id);
     await refresh();
   }
@@ -64,12 +68,12 @@ export function ProjectBrowser(): JSX.Element {
         <div className="project-browser-hero">
           <Logo size={56} />
           <div>
-            <h1>Projects</h1>
-            <p>Your texture and sprite projects. Modify textures without touching the vanilla catalog.</p>
+            <h1>{t('projects.title')}</h1>
+            <p>{t('projects.subtitle')}</p>
           </div>
         </div>
         <Button variant="primary" onClick={() => setShowCreate(true)}>
-          + New project
+          {t('projects.newProject')}
         </Button>
       </header>
 
@@ -80,14 +84,14 @@ export function ProjectBrowser(): JSX.Element {
             className={'filter-chip' + (filter === f ? ' active' : '')}
             onClick={() => setFilter(f)}
           >
-            {f === 'all' ? 'All' : f === 'mc' ? 'Minecraft' : 'Sprite'}
+            {f === 'all' ? t('projects.filter.all') : f === 'mc' ? t('projects.filter.mc') : t('projects.filter.sprite')}
           </button>
         ))}
         <button
           className={'filter-chip' + (modifiedOnly ? ' active' : '')}
           onClick={() => setModifiedOnly((v) => !v)}
         >
-          Modified only
+          {t('projects.filter.modified')}
         </button>
       </div>
 
@@ -96,9 +100,9 @@ export function ProjectBrowser(): JSX.Element {
           className="empty"
           style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'stretch', marginBottom: 16 }}
         >
-          <h2>New project</h2>
+          <h2>{t('projects.create.title')}</h2>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Name</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('projects.create.nameLabel')}</span>
             <input
               className="color-input"
               style={{ background: 'var(--bg-1)' }}
@@ -108,7 +112,7 @@ export function ProjectBrowser(): JSX.Element {
             />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Kind</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('projects.create.kindLabel')}</span>
             <div style={{ display: 'flex', gap: 8 }}>
               {(['mc', 'sprite'] as const).map((k) => (
                 <button
@@ -116,30 +120,30 @@ export function ProjectBrowser(): JSX.Element {
                   className={'filter-chip' + (newKind === k ? ' active' : '')}
                   onClick={() => setNewKind(k)}
                 >
-                  {k === 'mc' ? 'Minecraft' : 'Sprite'}
+                  {k === 'mc' ? t('projects.create.kindMc') : t('projects.create.kindSprite')}
                 </button>
               ))}
             </div>
           </label>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <Button variant="ghost" onClick={() => setShowCreate(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="primary" onClick={handleCreate}>
-              Create
+              {t('common.create')}
             </Button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="empty">Loading…</div>
+        <div className="empty">{t('common.loading')}</div>
       ) : visible.length === 0 ? (
         <div className="empty">
-          <h2>No projects yet</h2>
-          <p>Create a project to start editing vanilla textures or making sprites.</p>
+          <h2>{t('projects.empty.title')}</h2>
+          <p>{t('projects.empty.body')}</p>
           <Button variant="primary" onClick={() => setShowCreate(true)}>
-            + New project
+            {t('projects.newProject')}
           </Button>
         </div>
       ) : (
@@ -147,24 +151,24 @@ export function ProjectBrowser(): JSX.Element {
           {visible.map((p) => (
             <div key={p.id} className="project-card-wrap" style={{ position: 'relative' }}>
               <Link to={`/project/${p.id}`} className="project-card">
-                <div className="project-card-thumb">No preview</div>
+                <div className="project-card-thumb">{t('projects.noPreview')}</div>
                 <div className="project-card-body">
                   <h3 className="project-card-title">{p.name}</h3>
                   <div className="project-card-meta">
                     <span className={'badge ' + (p.kind === 'mc' ? 'badge-mc' : 'badge-sprite')}>
-                      {p.kind === 'mc' ? 'Minecraft' : p.kind === 'sprite' ? 'Sprite' : 'Mixed'}
+                      {p.kind === 'mc' ? t('projects.kind.mc') : p.kind === 'sprite' ? t('projects.kind.sprite') : t('projects.kind.mixed')}
                     </span>
                     {p.mcVersion && <span>{p.mcVersion}</span>}
                     {p.modifiedCount > 0 && (
-                      <span className="badge badge-modified">{p.modifiedCount} modified</span>
+                      <span className="badge badge-modified">{t('projects.modifiedBadge', { n: p.modifiedCount })}</span>
                     )}
-                    <span style={{ marginLeft: 'auto' }}>{p.textureCount} textures</span>
+                    <span style={{ marginLeft: 'auto' }}>{t('projects.textureCount', { n: p.textureCount })}</span>
                   </div>
                 </div>
               </Link>
               <button
                 onClick={() => handleDelete(p.id, p.name)}
-                title="Delete project"
+                title={t('projects.deleteTitle')}
                 style={{
                   position: 'absolute',
                   top: 8,
@@ -176,7 +180,7 @@ export function ProjectBrowser(): JSX.Element {
                   color: 'var(--fg-1)',
                   fontSize: 14,
                 }}
-                aria-label="Delete"
+                aria-label={t('common.delete')}
               >
                 ×
               </button>

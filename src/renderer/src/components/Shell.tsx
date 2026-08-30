@@ -5,10 +5,12 @@ import { useSettings, setTheme } from '../store/settings';
 import { setActiveMode } from '../store/settings';
 import { Logo } from './Logo';
 import { SettingsDialog } from './SettingsDialog';
+import { useTranslate, translateLabelWith } from '../i18n';
 import type { UpdateInfo } from '@shared/types';
 import './Shell.css';
 
 export function Shell({ children }: { children: ReactNode }): JSX.Element {
+  const t = useTranslate();
   const mode = useSettings((s) => s.activeMode);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -17,10 +19,10 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
       <header className="titlebar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Logo size={22} seed={0xc1} />
-          <h1>MCsprite Manager</h1>
+          <h1>{t('shell.appTitle')}</h1>
         </div>
         <div className="titlebar-controls">
-          <button aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>
+          <button aria-label={t('shell.settings')} title={t('shell.settings')} onClick={() => setSettingsOpen(true)}>
             <svg width="14" height="14" viewBox="0 0 14 14">
               <circle cx="7" cy="7" r="2.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
               <path
@@ -31,13 +33,13 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
             </svg>
           </button>
           <ThemeToggle />
-          <button aria-label="Minimize" onClick={() => window.api.window.minimize()}>
+          <button aria-label={t('shell.minimize')} onClick={() => window.api.window.minimize()}>
             <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5h6" stroke="currentColor" strokeWidth="1" fill="none" /></svg>
           </button>
-          <button aria-label="Maximize" onClick={() => window.api.window.maximize()}>
+          <button aria-label={t('shell.maximize')} onClick={() => window.api.window.maximize()}>
             <svg width="10" height="10" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" stroke="currentColor" strokeWidth="1" fill="none" /></svg>
           </button>
-          <button className="close" aria-label="Close" onClick={() => window.api.window.close()}>
+          <button className="close" aria-label={t('shell.close')} onClick={() => window.api.window.close()}>
             <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" strokeWidth="1" fill="none" /></svg>
           </button>
         </div>
@@ -45,29 +47,29 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
 
       <aside className="sidebar">
         <div className="sidebar-section">
-          <div className="sidebar-label">Mode</div>
+          <div className="sidebar-label">{t('shell.sidebar.mode')}</div>
           <NavLink
             to="/projects"
             className={({ isActive }) => 'sidebar-link' + (isActive || mode === 'texture' ? ' active' : '')}
             onClick={() => setActiveMode('texture')}
           >
-            <Icon name="layers" /> Texture
+            <Icon name="layers" /> {t('shell.sidebar.texture')}
           </NavLink>
         </div>
 
         <div className="sidebar-divider" />
 
         <div className="sidebar-section">
-          <div className="sidebar-label">Texture mode</div>
+          <div className="sidebar-label">{t('shell.sidebar.textureMode')}</div>
           <NavLink to="/projects" end className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}>
-            <Icon name="folder" /> Projects
+            <Icon name="folder" /> {t('shell.sidebar.projects')}
           </NavLink>
         </div>
 
         <div className="sidebar-section">
-          <div className="sidebar-label">Community</div>
+          <div className="sidebar-label">{t('shell.sidebar.community')}</div>
           <NavLink to="/uploaded" className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}>
-            <Icon name="folder" /> Uploaded
+            <Icon name="folder" /> {t('shell.sidebar.uploaded')}
           </NavLink>
         </div>
 
@@ -83,6 +85,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
 }
 
 function UpdateStatus(): JSX.Element {
+  const t = useTranslate();
   const [info, setInfo] = useState<UpdateInfo>({ status: 'idle' });
 
   useEffect(() => {
@@ -95,9 +98,9 @@ function UpdateStatus(): JSX.Element {
   if (info.status === 'downloaded') {
     return (
       <div className="update-status">
-        <span className="update-status-text">Update ready</span>
+        <span className="update-status-text">{t('shell.update.ready')}</span>
         <button className="btn" onClick={() => void window.api.update.install()}>
-          Restart & install
+          {t('shell.update.restart')}
         </button>
       </div>
     );
@@ -106,7 +109,7 @@ function UpdateStatus(): JSX.Element {
   if (info.status === 'available') {
     return (
       <div className="update-status">
-        <span className="update-status-text">Update available</span>
+        <span className="update-status-text">{t('shell.update.available')}</span>
       </div>
     );
   }
@@ -114,7 +117,7 @@ function UpdateStatus(): JSX.Element {
   if (info.status === 'downloading') {
     return (
       <div className="update-status">
-        <span className="update-status-text">Downloading… {info.percent ?? 0}%</span>
+        <span className="update-status-text">{t('shell.update.downloading', { percent: info.percent ?? 0 })}</span>
       </div>
     );
   }
@@ -122,7 +125,7 @@ function UpdateStatus(): JSX.Element {
   if (info.status === 'checking') {
     return (
       <div className="update-status">
-        <span className="update-status-text">Checking for updates…</span>
+        <span className="update-status-text">{t('shell.update.checking')}</span>
       </div>
     );
   }
@@ -130,7 +133,7 @@ function UpdateStatus(): JSX.Element {
   if (info.status === 'error') {
     return (
       <div className="update-status">
-        <span className="update-status-text">Update error</span>
+        <span className="update-status-text">{t('shell.update.error')}</span>
       </div>
     );
   }
@@ -139,11 +142,14 @@ function UpdateStatus(): JSX.Element {
 }
 
 function ThemeToggle(): JSX.Element {
+  const t = useTranslate();
+  const lang = useSettings((s) => s.language ?? 'en');
   const theme = useSettings((s) => s.theme);
   const next = theme === 'dark' ? 'light' : 'dark';
+  const nextLabel = translateLabelWith(lang, 'theme', next, next);
   return (
     <button
-      aria-label={`Switch to ${next} theme`}
+      aria-label={t('shell.theme.toggleAria', { next: nextLabel })}
       onClick={() => {
         setTheme(next);
         void window.api.theme.set(next);

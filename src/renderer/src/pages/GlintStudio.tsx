@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useStudio } from '../store/studio';
 import { generateGlint, GLINT_STYLES, type GlintStyle } from '../lib/glint';
 import { hexToTuple } from '../lib/canvas';
+import { useTranslate, translateLabelWith } from '../i18n';
+import { useSettings } from '../store/settings';
 import type { StudioFile } from '../../../shared/types';
 import './Studio.css';
 
@@ -397,6 +399,8 @@ function GlintPainter({
 }
 
 export default function GlintStudio() {
+  const t = useTranslate();
+  const lang = useSettings((s) => s.language ?? 'en');
   const { id: projectId = '' } = useParams();
   const studio = useStudio<GlintData>(projectId, 'glint');
   const [state, setState] = useState<GlintData>(defaultData);
@@ -552,13 +556,13 @@ export default function GlintStudio() {
               className={`seg-btn ${mode === 'peritem' ? 'active' : ''}`}
               onClick={() => setState((s) => ({ ...s, mode: 'peritem' }))}
             >
-              Per-enchantment
+              {t('glint.mode.peritem')}
             </button>
             <button
               className={`seg-btn ${mode === 'global' ? 'active' : ''}`}
               onClick={() => setState((s) => ({ ...s, mode: 'global' }))}
             >
-              Global
+              {t('glint.mode.global')}
             </button>
           </div>
 
@@ -568,7 +572,7 @@ export default function GlintStudio() {
               return (
                 <div key={cat}>
                   <div className="lab-cat">
-                    {cat} <span className="count">{list.length}</span>
+                    {translateLabelWith(lang, 'biomeCategory', cat, cat)} <span className="count">{list.length}</span>
                   </div>
                   {list.map((e) => (
                     <div
@@ -576,10 +580,10 @@ export default function GlintStudio() {
                       className={`lab-row ${selected === e.id ? 'selected' : ''}`}
                       onClick={() => setSelected(e.id)}
                     >
-                      <span className="name">{e.label}</span>
+                      <span className="name">{translateLabelWith(lang, 'enchantment', e.id, e.label)}</span>
                       <label
                         className="in-pack"
-                        title="Include in pack"
+                        title={t('glint.includeInPackTitle')}
                         onClick={(ev) => ev.stopPropagation()}
                       >
                         <input
@@ -614,20 +618,20 @@ export default function GlintStudio() {
           </div>
         </Section>
 
-        <Section title="Global glint" meta="default" defaultOpen={mode === 'global'}>
+        <Section title={t('glint.section.global')} meta={t('glint.meta.default')} defaultOpen={mode === 'global'}>
           <p className="hint" style={{ marginTop: 0 }}>
-            Default glint for non-specific items. It shows under any per-enchantment look you add.
+            {t('glint.globalHint')}
           </p>
           {mode === 'global' && (
             <div className="color-row-line">
-              <span>Main</span>
+              <span>{t('glint.mainColor')}</span>
               <input type="color" value={d.color} onChange={(e) => setDesign({ color: e.target.value })} />
             </div>
           )}
         </Section>
 
         {state.enabled.length > 0 && (
-          <Section title="My designs" meta={`${state.enabled.length} in pack`}>
+          <Section title={t('glint.section.myDesigns')} meta={t('glint.meta.inPack', { n: state.enabled.length })}>
             <div className="lab-list">
               {state.enabled.map((id) => {
                 const e = ENCHANTMENTS.find((x) => x.id === id)!;
@@ -651,9 +655,9 @@ export default function GlintStudio() {
       <section className="studio-main">
         <header className="studio-head">
           <div>
-            <h2>Glint Lab</h2>
+            <h2>{t('glint.labTitle')}</h2>
             <p className="lab-sub">
-              Design pixel-perfect enchantment glints for your resource pack.
+              {t('glint.labSubtitle')}
             </p>
           </div>
             <span className="lab-meta">Java 1.21.4+</span>
@@ -669,7 +673,7 @@ export default function GlintStudio() {
         <div className="studio-cols">
           <div className="panel">
             <div className="panel-title">
-              {mode === 'global' ? 'Global glint' : `${currentEnch?.label ?? ''} — draft`}
+              {mode === 'global' ? t('glint.draftTitleGlobal') : t('glint.draftTitle', { name: currentEnch ? translateLabelWith(lang, 'enchantment', currentEnch.id, currentEnch.label) : t('glint.thisEnchantment') })}
             </div>
             <canvas
               ref={(c) => {
@@ -704,13 +708,13 @@ export default function GlintStudio() {
 
             <div className="pill-row">
               <button className="pill" onClick={() => setCur({ ...DEFAULT_DESIGN })}>
-                Reset
+                {t('common.reset')}
               </button>
               <button className="pill" onClick={randomize}>
-                Randomize
+                {t('glint.randomize')}
               </button>
               <button className="pill primary" onClick={save}>
-                Save changes
+                {t('glint.saveChanges')}
               </button>
             </div>
 
@@ -754,7 +758,7 @@ export default function GlintStudio() {
           </div>
 
           <div className="panel">
-            <div className="panel-title">Live preview</div>
+            <div className="panel-title">{t('glint.previewTitle')}</div>
             <div className="glint-on-item">
               <div
                 className={`glint-layer ${animate ? 'animated' : ''}`}
@@ -769,12 +773,13 @@ export default function GlintStudio() {
             </div>
             <label className="apply-item" style={{ marginTop: 8 }}>
               <input type="checkbox" checked={animate} onChange={(e) => setAnimate(e.target.checked)} />
-              Animate
+              {t('glint.animate')}
             </label>
             <div className="status">
-              This look layers over the global glint; only items with{' '}
-              <b>{currentEnch?.label ?? 'this enchantment'}</b> use it —{' '}
-              {inPack ? 'it is in your pack.' : 'not in your pack yet.'}
+              {t('glint.previewStatus', {
+                name: currentEnch ? translateLabelWith(lang, 'enchantment', currentEnch.id, currentEnch.label) : t('glint.thisEnchantment'),
+                status: inPack ? t('glint.previewStatus.inPack') : t('glint.previewStatus.notInPack'),
+              })}
             </div>
           </div>
         </div>

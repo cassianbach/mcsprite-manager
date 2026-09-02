@@ -1875,6 +1875,9 @@ export function Editor(): JSX.Element {
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/biome`)}>
             {t('editor.nav.biome')}
           </Button>
+          <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/sky`)}>
+            Sky & Loading
+          </Button>
           <Button variant="ghost" onClick={() => navigate(`/project/${projectId}/export`)}>
             {t('editor.nav.importExport')}
           </Button>

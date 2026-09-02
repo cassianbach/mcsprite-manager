@@ -121,6 +121,11 @@ const api = {
       ipcRenderer.invoke(IPC.studio.get, projectId, key),
     set: (projectId: string, key: string, data: unknown): Promise<{ ok: true }> =>
       ipcRenderer.invoke(IPC.studio.set, projectId, key, data),
+    encodePng: (
+      width: number,
+      height: number,
+      rgba: Uint8Array | Uint8ClampedArray,
+    ): Promise<ArrayBuffer> => ipcRenderer.invoke(IPC.studio.encodePng, width, height, rgba),
   },
   io: {
     exportZip: (

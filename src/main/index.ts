@@ -39,6 +39,7 @@ import {
   readStudioData,
   writeStudioData,
   addVanillaTexture,
+  encodeStudioPng,
 } from './projectStore';
 import * as userLibrary from './userLibrary';
 import * as auth from './auth';
@@ -273,6 +274,11 @@ function registerIpc(): void {
   ipcMain.handle(IPC.studio.get, (_e, projectId: string, key: string) => readStudioData(projectId, key));
   ipcMain.handle(IPC.studio.set, (_e, projectId: string, key: string, data: unknown) =>
     writeStudioData(projectId, key, data),
+  );
+  ipcMain.handle(
+    IPC.studio.encodePng,
+    (_e, width: number, height: number, rgba: Uint8Array | Uint8ClampedArray): Buffer =>
+      encodeStudioPng(width, height, rgba),
   );
 
   ipcMain.handle(IPC.io.exportList, (_e, projectId: string) => listDetailed(projectId));

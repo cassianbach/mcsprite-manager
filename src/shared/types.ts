@@ -204,6 +204,81 @@ export interface ImportTexturePreview {
 
 export type ImportAction = 'import' | 'skip' | 'overwrite' | 'rename';
 
+export type SkyBlend =
+  | 'replace'
+  | 'alpha'
+  | 'add'
+  | 'screen'
+  | 'multiply'
+  | 'overlay'
+  | 'subtract'
+  | 'dodge'
+  | 'burn';
+
+export type SkyWeather = 'clear' | 'rain' | 'thunder';
+
+/** A single Skyboxify-style sky layer (6 face images composed into a 3:2 cube cross-strip). */
+export interface SkyLayer {
+  enabled: boolean;
+  /** Pack-relative PNG path. Auto-filled to assets/minecraft/optifine/sky/world0/skyN.png on export. */
+  source: string;
+  /**
+   * Six per-face images (square PNGs, e.g. 512×512 each). The studio composes
+   * them into the 3×2 cube cross-strip Skyboxify expects on export.
+   * Order matches Skyboxify/OptiFine: [Down, Up, East, South, West, North]
+   * (top row: Down, Up, East — bottom row: South, West, North).
+   */
+  faces: [SkyFaceImage, SkyFaceImage, SkyFaceImage, SkyFaceImage, SkyFaceImage, SkyFaceImage];
+  blend: SkyBlend;
+  startFadeIn?: string;
+  endFadeIn?: string;
+  startFadeOut?: string;
+  endFadeOut?: string;
+  /** Rotations per in-game day. */
+  speed: number;
+  daysLoop: number;
+  days?: string;
+  weather: SkyWeather[];
+  biomes?: string;
+  heights?: string;
+  /** Fade-in duration in seconds when conditions are met. */
+  transition: number;
+  /** Unit-vector rotation axis. */
+  axis: [number, number, number];
+  rotate: boolean;
+}
+
+/** A single square face image used by a sky layer (Down/Up/East/South/West/North). */
+export interface SkyFaceImage {
+  dataUrl: string;
+}
+
+/** A single 1024x1024 vanilla panorama face (also the loading-screen background). */
+export interface LoadingFace {
+  dataUrl: string;
+}
+
+export interface SkyStudioData {
+  version: 1;
+  /**
+   * When true (default), non-square face uploads are uniformly upscaled to
+   * fill the target square and centered-cropped on the overflow (no stretch,
+   * no black edges — edge content may be cropped). When false, non-square
+   * uploads are letterboxed to fit inside the square (transparent margins).
+   */
+  cover?: boolean;
+  sky: {
+    dimension: 'world0';
+    layers: SkyLayer[];
+  };
+  loading: {
+    /** panorama_0 (Back) ... panorama_5 (Bottom). Minecraft automatically blurs
+     * and darkens these when you join a world, so they serve as both the main
+     * menu background and the world-loading-screen background. */
+    panorama: [LoadingFace, LoadingFace, LoadingFace, LoadingFace, LoadingFace, LoadingFace];
+  };
+}
+
 /** A file the studio contributes to the exported resource pack. */
 export interface StudioFile {
   /** Minecraft path inside the pack, e.g. assets/minecraft/items/diamond_sword.json */
@@ -427,5 +502,6 @@ export const IPC = {
   studio: {
     get: 'studio:get',
     set: 'studio:set',
+    encodePng: 'studio:encodePng',
   },
 } as const;

@@ -1,0 +1,28 @@
+.sky-face-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.sky-strip-canvas-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  min-width: 0;
+}
+
+.sky-strip-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* 3:2 aspect ratio (1536x1024) — keeps all 6 faces visible and proportional. */
+  aspect-ratio: 3 / 2;
+  max-height: 420px;
+  background: #1f2024;
+  border-radius: var(--radius-sm);
+  image-rendering: pixelated;
+}

@@ -19,7 +19,7 @@ import type {
   AddTextureResult,
 } from '../shared/types';
 import { packFormatForVersion } from '../shared/types';
-import type { StudioFile } from '../shared/types';
+import type { StudioFile, SkyStudioData, SkyLayer } from '../shared/types';
 
 const PROJECTS_ROOT = (): string => join(app.getPath('userData'), 'projects');
 
@@ -681,6 +681,124 @@ function dataUrlToBuffer(dataUrl: string): Buffer | null {
   }
 }
 
+/**
+ * Encode RGBA pixels as a clean PNG (no iCCP/color-profile chunk).
+ *
+ * colorType 2 (RGB) matches vanilla panorama/skybox texture convention and
+ * means any alpha channel left over from the canvas (letterbox regions,
+ * transparent source pixels) is discarded during RGB conversion, so exported
+ * PNGs are fully opaque — preventing Skyboxify's `blend=replace` skybox
+ * layers from showing the vanilla sky through any transparent pixels.
+ *
+ * pngjs always allocates its internal `png.data` buffer as width*height*4
+ * (RGBA layout) regardless of colorType, so we write at stride 4 and set
+ * alpha to 255 (opaque). The colorType controls the on-disk PNG output
+ * (RGB), not the internal buffer.
+ */
+export function encodeStudioPng(
+  width: number,
+  height: number,
+  rgba: Uint8Array | Uint8ClampedArray,
+): Buffer {
+  const png = new PNG({ width, height, colorType: 2 });
+  for (let i = 0; i < rgba.length; i += 4) {
+    png.data[i] = rgba[i];
+    png.data[i + 1] = rgba[i + 1];
+    png.data[i + 2] = rgba[i + 2];
+    png.data[i + 3] = 255;
+  }
+  return Buffer.from(PNG.sync.write(png));
+}
+
+/**
+ * Render a Skyboxify .properties text body for one sky layer (1-indexed).
+ * `source=` is a namespaced resource ID (`<namespace>:<path>`); Skyboxify
+ * resolves it relative to `assets/<namespace>/`, so the path must NOT
+ * include the `assets/minecraft/` prefix.
+ */
+function buildSkyboxifyProperties(layer: SkyLayer, n: number): string {
+  const source = layer.source || `optifine/sky/world0/sky${n}.png`;
+  const lines: string[] = [];
+  lines.push(`source=minecraft:${source}`);
+  lines.push(`blend=${layer.blend}`);
+  if (layer.startFadeIn) lines.push(`startFadeIn=${layer.startFadeIn}`);
+  if (layer.endFadeIn) lines.push(`endFadeIn=${layer.endFadeIn}`);
+  if (layer.startFadeOut) lines.push(`startFadeOut=${layer.startFadeOut}`);
+  if (layer.endFadeOut) lines.push(`endFadeOut=${layer.endFadeOut}`);
+  lines.push(`speed=${layer.speed}`);
+  lines.push(`daysLoop=${layer.daysLoop}`);
+  if (layer.days) lines.push(`days=${layer.days}`);
+  lines.push(`weather=${(layer.weather ?? []).join(' ')}`);
+  if (layer.biomes) lines.push(`biomes=${layer.biomes}`);
+  if (layer.heights) lines.push(`heights=${layer.heights}`);
+  lines.push(`transition=${layer.transition}`);
+  const a = layer.axis ?? [0, 0, 1];
+  lines.push(`axis=${a[0]} ${a[1]} ${a[2]}`);
+  lines.push(`rotate=${layer.rotate ? 'true' : 'false'}`);
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Skyboxify reads .properties files via Java's `Properties.load(InputStream)`,
+ * which expects ISO-8859-1 (Latin-1). Encode explicitly so the bytes match
+ * what Skyboxify will parse.
+ */
+function propertiesToBuffer(text: string): Buffer {
+  return Buffer.from(text, 'latin1');
+}
+
+const SKY_FACE_SIZE = 512;
+const SKY_STRIP_W = SKY_FACE_SIZE * 3; // 1536
+const SKY_STRIP_H = SKY_FACE_SIZE * 2; // 1024
+
+/**
+ * Compose 6 per-face PNGs (SKY_FACE_SIZE × SKY_FACE_SIZE each, RGBA) into the
+ * Skyboxify 3×2 cube cross-strip (1536×1024). Face order matches the studio:
+ * [Down, Up, East, South, West, North] → top row [Down, Up, East], bottom row
+ * [South, West, North]. Returns the encoded strip Buffer, or null if any
+ * face is missing/invalid.
+ *
+ * The renderer guarantees every saved face dataUrl decodes to exactly
+ * SKY_FACE_SIZE × SKY_FACE_SIZE (RGBA) by resizing on import and on hydrate.
+ * So we paste the raw decoded RGBA into the strip without further resizing.
+ */
+function composeSkyStrip(faceBuffers: Buffer[]): Buffer | null {
+  if (faceBuffers.length !== 6) return null;
+  const decoded = faceBuffers.map((b) => {
+    try {
+      return PNG.sync.read(b);
+    } catch {
+      return null;
+    }
+  });
+  if (decoded.some((d) => d === null)) return null;
+  for (const d of decoded) {
+    if (!d) return null;
+    if (d.width !== SKY_FACE_SIZE || d.height !== SKY_FACE_SIZE) return null;
+  }
+  const stripBytes = SKY_STRIP_W * SKY_STRIP_H * 4;
+  const strip = Buffer.alloc(stripBytes);
+  const faceW = SKY_FACE_SIZE;
+  const positions: Array<{ x: number; y: number }> = [
+    { x: 0, y: 0 },                  // Down (top-left)
+    { x: faceW, y: 0 },              // Up (top-middle)
+    { x: faceW * 2, y: 0 },          // East (top-right)
+    { x: 0, y: faceW },              // South (bottom-left)
+    { x: faceW, y: faceW },          // West (bottom-middle)
+    { x: faceW * 2, y: faceW },      // North (bottom-right)
+  ];
+  for (let i = 0; i < 6; i++) {
+    const d = decoded[i]!;
+    const pos = positions[i];
+    for (let row = 0; row < SKY_FACE_SIZE; row++) {
+      const srcOff = row * SKY_FACE_SIZE * 4;
+      const dstOff = ((pos.y + row) * SKY_STRIP_W + pos.x) * 4;
+      d.data.copy(strip, dstOff, srcOff, srcOff + SKY_FACE_SIZE * 4);
+    }
+  }
+  return encodeStudioPng(SKY_STRIP_W, SKY_STRIP_H, strip);
+}
+
 export async function exportZipTo(
   projectId: string,
   targetPath: string,
@@ -723,6 +841,37 @@ export async function exportZipTo(
       } else if (typeof f.json === 'string') {
         studioAssets.push({ name: f.path, json: f.json });
       }
+    }
+  }
+  const skyData = await readStudioData(projectId, 'sky');
+  if (skyData && typeof skyData === 'object') {
+    const s = skyData as SkyStudioData;
+    const layers = Array.isArray(s.sky?.layers) ? s.sky.layers : [];
+    layers.forEach((layer, i) => {
+      if (!layer || !layer.enabled) return;
+      const faces = Array.isArray(layer.faces) ? layer.faces : [];
+      if (faces.length !== 6 || !faces.every((f) => f && typeof f.dataUrl === 'string' && f.dataUrl)) return;
+      const n = i + 1;
+      const pngName = `assets/minecraft/optifine/sky/world0/sky${n}.png`;
+      const propsName = `assets/minecraft/optifine/sky/world0/sky${n}.properties`;
+      const faceBuffers = faces.map((f) => dataUrlToBuffer(f.dataUrl)).filter((b): b is Buffer => b !== null);
+      const stripBuf = composeSkyStrip(faceBuffers);
+      if (stripBuf) studioAssets.push({ name: pngName, buf: stripBuf });
+      studioAssets.push({ name: propsName, buf: propertiesToBuffer(buildSkyboxifyProperties(layer, n)) });
+    });
+    const pano = s.loading?.panorama;
+    if (Array.isArray(pano)) {
+      const faceNames = ['panorama_0', 'panorama_1', 'panorama_2', 'panorama_3', 'panorama_4', 'panorama_5'];
+      pano.forEach((face, i) => {
+        if (!face || typeof face.dataUrl !== 'string' || !face.dataUrl) return;
+        const buf = dataUrlToBuffer(face.dataUrl);
+        if (buf) {
+          studioAssets.push({
+            name: `assets/minecraft/textures/gui/title/background/${faceNames[i]}.png`,
+            buf,
+          });
+        }
+      });
     }
   }
 

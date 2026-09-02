@@ -31,6 +31,14 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, Props>(function C
   { onPointer, overlay },
   ref,
 ) {
+  // Conservative upper bound for a single canvas dimension that is safe across
+  // Chromium, Gecko, and WebKit. Beyond this, the browser silently fails to
+  // allocate the backing store and the canvas renders as a blank/white area
+  // (the "white flash" bug), which is also what made the drawn texture appear
+  // to "scroll away" — the pixels were there in the buffer but the canvas
+  // never received them.
+  const MAX_CANVAS_DIM = 16384;
+
   const texture = useProject((s) => s.texture);
   const zoom = useEditorUi((s) => s.zoom);
   const showGrid = useEditorUi((s) => s.showGrid);
@@ -43,16 +51,23 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, Props>(function C
   const [panning, setPanning] = useState(false);
   const panState = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number } | null>(null);
 
-  const scale = zoom;
+  // Maximum zoom that keeps the canvas backing store within browser limits.
+  const w = texture ? texture.width : 0;
+  // `texture.height` is already the per-frame height (frameHeight); the full
+  // strip is width × (height × frameCount). Don't divide again.
+  const h = texture ? texture.height : 0;
+  const maxZoomFor = (texW: number, texH: number): number => {
+    if (texW <= 0 || texH <= 0) return 64;
+    const m = Math.max(texW, texH);
+    return Math.max(1, Math.floor(MAX_CANVAS_DIM / m));
+  };
+
+  const scale = Math.max(1, Math.min(zoom, maxZoomFor(w, h)));
   // Animated textures store the full strip in `width` x `height`, but
   // `current` holds only the active frame. Display at frame dimensions so the
   // canvas size and the pixel buffer always agree (otherwise repaint throws and
   // the canvas flashes black).
   const animFrames = texture?.animation?.frames.length ?? 0;
-  const w = texture ? texture.width : 0;
-  // `texture.height` is already the per-frame height (frameHeight); the full
-  // strip is width × (height × frameCount). Don't divide again.
-  const h = texture ? texture.height : 0;
 
   // Resize canvases when texture or zoom changes
   useEffect(() => {
@@ -60,12 +75,18 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, Props>(function C
     const gr = gridRef.current;
     const ov = overlayRef.current;
     if (!px || !gr || !ov) return;
-    px.width = w * scale;
-    px.height = h * scale;
-    gr.width = w * scale;
-    gr.height = h * scale;
-    ov.width = w * scale;
-    ov.height = h * scale;
+    // Hard cap the backing-store dimensions at MAX_CANVAS_DIM as a safety net,
+    // even though `scale` is already clamped. This guarantees the canvas
+    // never silently fails to allocate (which would render as a blank/white
+    // area — the "white flash" / "scrolls away" bug).
+    const cssW = w * scale;
+    const cssH = h * scale;
+    px.width = cssW;
+    px.height = cssH;
+    gr.width = cssW;
+    gr.height = cssH;
+    ov.width = cssW;
+    ov.height = cssH;
     repaint();
   }, [w, h, scale]);
 
@@ -145,10 +166,10 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, Props>(function C
       const cw = el.clientWidth - padding;
       const ch = el.clientHeight - padding;
       if (cw <= 0 || ch <= 0) return;
-      const z = Math.max(1, Math.min(64, Math.floor(Math.min(cw / w, ch / h))));
-      setZoom(z);
+      const fitZ = Math.max(1, Math.floor(Math.min(cw / w, ch / h)));
+      setZoom(Math.min(fitZ, maxZoomFor(w, h)));
     },
-    resetZoom: () => setZoom(8),
+    resetZoom: () => setZoom(Math.min(8, maxZoomFor(w, h))),
     repaint,
   }));
 
@@ -277,7 +298,11 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, Props>(function C
     if (e.deltaY === 0) return;
     const dir = e.deltaY > 0 ? -1 : 1;
     const step = Math.max(1, Math.floor(zoom / 4));
-    setZoom(zoom + dir * step);
+    // Clamp to the maximum zoom that keeps the canvas backing store within
+    // browser limits. This prevents the "white flash / scrolls away" bug
+    // when zooming too far into a large texture.
+    const cap = maxZoomFor(w, h);
+    setZoom(Math.max(1, Math.min(cap, zoom + dir * step)));
   }
 
   function handleContextMenu(e: React.MouseEvent): void {

@@ -9,6 +9,7 @@ import { BulkEdit } from './pages/BulkEdit';
 import { ImportExport } from './pages/ImportExport';
 import GlintStudio from './pages/GlintStudio';
 import BiomeTintStudio from './pages/BiomeTintStudio';
+import SkyLoadingStudio from './pages/SkyLoadingStudio';
 import { CollabLanding } from './pages/CollabLanding';
 import { UploadedCatalog } from './pages/UploadedCatalog';
 import { useSettings } from './store/settings';
@@ -101,6 +102,7 @@ export function App(): JSX.Element {
   <Route path="/project/:id/export" element={<ImportExport />} />
         <Route path="/project/:id/glint" element={<GlintStudio />} />
         <Route path="/project/:id/biome" element={<BiomeTintStudio />} />
+        <Route path="/project/:id/sky" element={<SkyLoadingStudio />} />
         <Route path="/uploaded" element={<UploadedCatalog />} />
         <Route path="/collab" element={<CollabLanding />} />
         <Route path="*" element={<Navigate to="/projects" replace />} />
